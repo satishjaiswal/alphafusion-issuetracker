@@ -23,6 +23,17 @@ from apps.web.models import (
 
 logger = logging.getLogger(__name__)
 
+# Import RedisHelper (will be initialized lazily)
+_redis_helper = None
+
+def _get_redis_helper():
+    """Get RedisHelper instance (lazy initialization)"""
+    global _redis_helper
+    if _redis_helper is None:
+        from apps.web.utils.redis_helper import RedisHelper
+        _redis_helper = RedisHelper()
+    return _redis_helper
+
 
 class FirebaseHelper:
     """Helper class for Firebase Firestore operations"""
@@ -143,6 +154,7 @@ class FirebaseHelper:
             issues_ref = self.db.collection("issues")
             doc_ref = issues_ref.add(issue.to_dict())
             issue_id = doc_ref[1].id
+            issue.id = issue_id  # Set the ID for Redis storage
             
             # Create activity log
             self.create_activity(
@@ -150,6 +162,16 @@ class FirebaseHelper:
                 activity_type=ActivityType.CREATED,
                 user_id=issue.reporter_id
             )
+            
+            # Also store in Redis for recent issues (with TTL 1 hour)
+            try:
+                redis_helper = _get_redis_helper()
+                if redis_helper.is_available():
+                    # Set the issue ID before storing
+                    issue.id = issue_id
+                    redis_helper.store_issue(issue)
+            except Exception as e:
+                logger.debug(f"Failed to store issue in Redis (non-critical): {e}")
             
             return issue_id
         except Exception as e:
@@ -228,6 +250,17 @@ class FirebaseHelper:
                     user_id=user_id,
                     changes=activity_changes
                 )
+            
+            # Also update in Redis (if issue exists there)
+            try:
+                redis_helper = _get_redis_helper()
+                if redis_helper.is_available():
+                    # Get updated issue and store in Redis
+                    updated_issue = self.get_issue(issue_id)
+                    if updated_issue:
+                        redis_helper.update_issue(updated_issue)
+            except Exception as e:
+                logger.debug(f"Failed to update issue in Redis (non-critical): {e}")
             
             return True
         except Exception as e:

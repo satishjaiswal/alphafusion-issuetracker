@@ -24,7 +24,6 @@ try:
     from flask import Flask, request, g
     from apps.web.extensions import csrf, talisman, limiter
     from apps.web.routes import register_routes
-    from apps.web.api import api_bp
     from apps.web.auth import ensure_default_admin
     
     logger.info("All Flask dependencies imported successfully")
@@ -35,8 +34,17 @@ except ImportError as e:
     raise
 
 
-def create_app():
-    """Create and configure Flask application"""
+def create_app(queue_consumer=None, cache_client=None):
+    """
+    Create and configure Flask application.
+    
+    Args:
+        queue_consumer: Optional QueueConsumer instance. If None, creates default from factory.
+        cache_client: Optional CacheClient instance. If None, creates default from factory.
+    
+    Returns:
+        Configured Flask application
+    """
     # Ensure default admin user exists
     try:
         ensure_default_admin()
@@ -66,6 +74,14 @@ def create_app():
     # 4. Register Error Handlers
     register_error_handlers(app)
     
+    # 5. Start Kafka consumer for issues (with optional dependencies)
+    try:
+        from apps.web.kafka_consumer import start_consumer
+        start_consumer(queue_consumer=queue_consumer, cache_client=cache_client)
+        logger.info("Kafka consumer started for issue tracking")
+    except Exception as e:
+        logger.warning(f"Failed to start Kafka consumer: {e}. Issue tracking may not work.")
+    
     return app
 
 
@@ -89,6 +105,10 @@ def configure_app(app):
     except Exception as e:
         logger.warning(f"Could not load secret key from SecureConfigLoader: {e}. Using fallback.")
         app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production-issuetracker")
+    
+    # Configure CSRF to exempt API routes using a custom check function
+    # This will be used by CustomCSRFProtect
+    app.config['WTF_CSRF_CHECK_DEFAULT'] = True
     
     # Flask configuration
     try:
@@ -122,32 +142,11 @@ def init_extensions(app):
     
     # Rate Limiting
     limiter.init_app(app)
-    
-    # Exempt API routes from CSRF
-    _exempt_api_routes(app)
-
-
-def _exempt_api_routes(app):
-    """Exempt API routes from CSRF protection"""
-    try:
-        # Exempt all API routes
-        for rule in app.url_map.iter_rules():
-            if rule.rule.startswith('/api/'):
-                endpoint = rule.endpoint
-                if endpoint in app.view_functions:
-                    csrf.exempt(app.view_functions[endpoint])
-        
-        logger.info("API routes exempted from CSRF")
-    except Exception as e:
-        logger.error(f"Error exempting API routes from CSRF: {e}", exc_info=True)
 
 
 def register_blueprints(app):
     """Register Flask blueprints"""
-    # Register API blueprint
-    app.register_blueprint(api_bp)
-    
-    # Register web routes
+    # Register web routes only (API removed - using Kafka instead)
     register_routes(app)
 
 
@@ -155,7 +154,7 @@ def register_error_handlers(app):
     """Register error handlers"""
     @app.errorhandler(404)
     def not_found(error):
-        if request.is_json or request.path.startswith("/api/"):
+        if request.is_json:
             return {'error': 'Not found'}, 404
         from flask import render_template
         return render_template('404.html'), 404
@@ -189,5 +188,14 @@ if __name__ == "__main__":
     app = create_app()
     port = app.config.get('FLASK_PORT', 6001)
     debug = app.config.get('FLASK_DEBUG', False)
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    
+    try:
+        app.run(host='0.0.0.0', port=port, debug=debug)
+    finally:
+        # Stop Kafka consumer on shutdown
+        try:
+            from apps.web.kafka_consumer import stop_consumer
+            stop_consumer()
+        except Exception as e:
+            logger.warning(f"Error stopping Kafka consumer: {e}")
 

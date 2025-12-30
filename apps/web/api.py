@@ -21,6 +21,10 @@ firebase_helper = FirebaseHelper()
 # Create API blueprint
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
+# Exempt entire API blueprint from CSRF protection
+# This must be done after csrf is initialized in app.py
+# We'll do it in app.py after blueprint registration
+
 
 @api_bp.route("/health", methods=["GET"])
 def health_check():
@@ -59,7 +63,7 @@ def create_issue():
             tags=data.get("tags", [])
         )
         
-        # Save to Firebase
+        # Save to Firebase (this also stores in Redis automatically)
         issue_id = firebase_helper.create_issue(issue)
         
         if not issue_id:
@@ -200,6 +204,17 @@ def create_comment(issue_id: str):
         
         if not comment_id:
             return jsonify({"error": "Failed to create comment"}), 500
+        
+        # Update issue in Redis if it exists there (to refresh TTL)
+        try:
+            from apps.web.utils.redis_helper import RedisHelper
+            redis_helper = RedisHelper()
+            if redis_helper.is_available():
+                updated_issue = firebase_helper.get_issue(issue_id)
+                if updated_issue:
+                    redis_helper.update_issue(updated_issue)
+        except Exception as e:
+            logger.debug(f"Failed to update issue in Redis after comment (non-critical): {e}")
         
         # Get created comment
         comments = firebase_helper.get_comments(issue_id)

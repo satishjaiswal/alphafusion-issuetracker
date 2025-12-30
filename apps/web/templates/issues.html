@@ -6,7 +6,14 @@
 <div class="row">
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1>Issues</h1>
+            <div>
+                <h1>Issues</h1>
+                {% if source == 'recent' %}
+                <p class="text-muted mb-0">Recent issues (last 1 hour from Redis)</p>
+                {% else %}
+                <p class="text-muted mb-0">All issues (from Firebase)</p>
+                {% endif %}
+            </div>
             <a href="{{ url_for('create_issue') }}" class="btn btn-primary">
                 <i class="bi bi-plus-circle"></i> Create Issue
             </a>
@@ -21,7 +28,7 @@
                 <h5 class="mb-0">Filters</h5>
             </div>
             <div class="card-body">
-                <form method="GET" action="{{ url_for('issues_list') }}">
+                <form method="GET" action="{{ url_for('issues_recent' if source == 'recent' else 'issues_all') }}">
                     <div class="row">
                         <div class="col-md-3">
                             <label class="form-label">Status</label>

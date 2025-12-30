@@ -49,9 +49,31 @@ def register_routes(app):
             flash("Error loading dashboard", "error")
             return render_template("dashboard.html", stats={}, recent_issues=[])
     
-    @app.route("/issues")
-    def issues_list():
-        """List all issues with filters"""
+    @app.route("/issues/recent")
+    def issues_recent():
+        """List recent issues from Redis (last 1 hour)"""
+        try:
+            from apps.web.utils.redis_helper import RedisHelper
+            
+            redis_helper = RedisHelper()
+            limit = int(request.args.get("limit", 100))
+            
+            # Get recent issues from Redis
+            issues = redis_helper.list_recent_issues(limit=limit)
+            
+            # Get users for display
+            users = firebase_helper.list_users()
+            users_dict = {user.uid: user for user in users}
+            
+            return render_template("issues.html", issues=issues, users=users_dict, filters=request.args, source="recent")
+        except Exception as e:
+            logger.error(f"Error listing recent issues: {e}", exc_info=True)
+            flash("Error loading recent issues", "error")
+            return render_template("issues.html", issues=[], users={}, filters={}, source="recent")
+    
+    @app.route("/issues/all")
+    def issues_all():
+        """List all issues from Firebase"""
         try:
             # Get query parameters
             filters = {}
@@ -68,18 +90,23 @@ def register_routes(app):
             
             limit = int(request.args.get("limit", 100))
             
-            # Get issues
+            # Get issues from Firebase
             issues = firebase_helper.list_issues(filters=filters, limit=limit)
             
             # Get users for display
             users = firebase_helper.list_users()
             users_dict = {user.uid: user for user in users}
             
-            return render_template("issues.html", issues=issues, users=users_dict, filters=request.args)
+            return render_template("issues.html", issues=issues, users=users_dict, filters=request.args, source="all")
         except Exception as e:
-            logger.error(f"Error listing issues: {e}", exc_info=True)
+            logger.error(f"Error listing all issues: {e}", exc_info=True)
             flash("Error loading issues", "error")
-            return render_template("issues.html", issues=[], users={}, filters={})
+            return render_template("issues.html", issues=[], users={}, filters={}, source="all")
+    
+    @app.route("/issues")
+    def issues_list():
+        """Redirect to recent issues by default"""
+        return redirect(url_for("issues_recent"))
     
     @app.route("/issues/<issue_id>")
     def issue_detail(issue_id: str):
@@ -115,7 +142,7 @@ def register_routes(app):
     @app.route("/issues/create", methods=["GET", "POST"])
     @require_auth
     def create_issue():
-        """Create new issue"""
+        """Create new issue (publishes to Kafka/Redis only - background consumer writes to Firebase)"""
         if request.method == "GET":
             return render_template("create_issue.html")
         
@@ -129,25 +156,37 @@ def register_routes(app):
                 flash("Authentication required", "error")
                 return redirect(url_for("login"))
             
-            # Create issue
-            issue = Issue(
-                title=data["title"],
-                description=data["description"],
-                status=IssueStatus(data.get("status", "open")),
-                priority=IssuePriority(data.get("priority", "medium")),
-                type=IssueType(data.get("type", "task")),
-                reporter_id=user_id,
-                assignee_id=data.get("assignee_id"),
-                tags=data.get("tags", [])
-            )
-            
-            issue_id = firebase_helper.create_issue(issue)
-            
-            if issue_id:
-                flash("Issue created successfully", "success")
-                return redirect(url_for("issue_detail", issue_id=issue_id))
-            else:
-                flash("Failed to create issue", "error")
+            # Publish to Kafka/Redis (single data flow - no direct Firebase write)
+            try:
+                from alphafusion.utils.issue_publisher import get_issue_publisher
+                publisher = get_issue_publisher()
+                
+                if not publisher or not publisher.is_available():
+                    flash("Issue publishing service unavailable. Please try again later.", "error")
+                    return render_template("create_issue.html")
+                
+                # Publish issue to Kafka/Redis
+                success = publisher.publish_issue(
+                    title=data["title"],
+                    description=data["description"],
+                    type=data.get("type", "task"),
+                    priority=data.get("priority", "medium"),
+                    reporter_id=user_id,
+                    assignee_id=data.get("assignee_id"),
+                    tags=data.get("tags", []),
+                    component="web-ui"
+                )
+                
+                if success:
+                    flash("Issue created successfully. It will appear in the system shortly.", "success")
+                    # Redirect to recent issues (will show from Redis)
+                    return redirect(url_for("issues_recent"))
+                else:
+                    flash("Failed to publish issue. Please try again.", "error")
+                    return render_template("create_issue.html")
+            except Exception as e:
+                logger.error(f"Error publishing issue: {e}", exc_info=True)
+                flash("Error creating issue. Please try again.", "error")
                 return render_template("create_issue.html")
         except ValueError as e:
             flash(f"Validation error: {str(e)}", "error")

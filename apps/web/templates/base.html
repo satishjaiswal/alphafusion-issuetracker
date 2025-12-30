@@ -30,7 +30,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16" class="brand-icon">
                     <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM4.5 7.5a.5.5 0 0 0 0 1h7a.5.5 0 0 0 0-1h-7z"/>
                 </svg>
-                <span class="brand-text">Issue Tracker</span>
+                <span class="brand-text">Alphafusion Issue Tracker</span>
             </a>
             <div class="nav-actions">
                 <!-- Theme selector will be inserted here by theme-selector.js -->
@@ -66,7 +66,7 @@
                     </svg>
                     <span class="action-group-label">Dashboard</span>
                 </a>
-                <a href="{{ url_for('issues_list') }}" class="action-group-icon {% if request.endpoint == 'issues_list' %}active{% endif %}" title="Issues">
+                <a href="{{ url_for('issues_recent') }}" class="action-group-icon {% if request.endpoint in ['issues_list', 'issues_recent', 'issues_all'] %}active{% endif %}" title="Issues">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
                         <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
                         <path d="M9.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/>
@@ -79,6 +79,23 @@
                     </svg>
                     <span class="action-group-label">Create</span>
                 </a>
+            </div>
+            <div class="action-items-section" id="action-items-section">
+                {% if request.endpoint in ['issues_list', 'issues_recent', 'issues_all'] %}
+                <a href="{{ url_for('issues_recent') }}" class="action-item-icon {% if request.endpoint == 'issues_recent' %}active{% endif %}" title="Recent Issues (Last 1 Hour)">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/>
+                        <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/>
+                    </svg>
+                    <span class="action-item-label">Recent</span>
+                </a>
+                <a href="{{ url_for('issues_all') }}" class="action-item-icon {% if request.endpoint == 'issues_all' %}active{% endif %}" title="All Issues">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zM2.5 2a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zm6.5.5A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zM1 10.5A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zm6.5.5A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3z"/>
+                    </svg>
+                    <span class="action-item-label">All</span>
+                </a>
+                {% endif %}
             </div>
         </div>
     </nav>
