@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  issuetracker:
+    build:
+      context: ..
+      dockerfile: alphafusion-issuetracker/Dockerfile
+    container_name: alphafusion-issuetracker
+    environment:
+      # SecureConfigLoader configuration (REQUIRED)
+      # All configuration should be read through SecureConfigLoader
+      # Non-sensitive configs: alphafusion-config/ → synced to cache
+      # Sensitive configs: .credentials/ directory
+      - ALPHAFUSION_CONFIG_MAPPING=${ALPHAFUSION_CONFIG_MAPPING:-/app/alphafusion-issuetracker/config_mapping.json}
+      - ALPHAFUSION_CREDENTIALS_DIR=/app/.credentials
+      # Service connections (vendor-agnostic)
+      # NOTE: Services MUST read from SecureConfigLoader - these env vars are for container/service discovery only
+      # Cache service (vendor-agnostic)
+      - CACHE_HOST=${CACHE_HOST:-redis}
+      - CACHE_PORT=${CACHE_PORT:-6379}
+      - CACHE_DB=${CACHE_DB:-0}
+      # Flask configuration
+      - FLASK_PORT=6001
+      - FLASK_DEBUG=${FLASK_DEBUG:-False}
+      # Logging configuration
+      - LOG_LEVEL=INFO
+    ports:
+      - "${ISSUETRACKER_PORT:-6002}:6001"
+    networks:
+      - alphafusion-network
+    depends_on:
+      - consul-seed
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "--timeout=5", "http://127.0.0.1:6001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  alphafusion-network:
+    external: true
+

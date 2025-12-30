@@ -1,0 +1,60 @@
+# Python cache
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+*.whl
+
+# Virtual environments
+venv/
+**/venv/
+env/
+ENV/
+.venv/
+**/.venv/
+
+# Test outputs (not needed in containers)
+test_outputs/
+**/test_outputs/
+tests-output/
+**/tests-output/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.cover
+nosetests.xml
+coverage.xml
+.hypothesis/
+
+# Documentation (not needed in containers)
+*.md
+!README.md
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git files
+.git/
+.gitignore
+
+# Only include application code
+# Keep: apps/ directory with all runtime code
+

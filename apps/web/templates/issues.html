@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Issues{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Issues</h1>
+            <a href="{{ url_for('routes.create_issue') }}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Create Issue
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Filters</h5>
+            </div>
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('routes.issues_list') }}">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label">Status</label>
+                            <select name="status" class="form-select">
+                                <option value="">All</option>
+                                <option value="open" {% if filters.get('status') == 'open' %}selected{% endif %}>Open</option>
+                                <option value="in-progress" {% if filters.get('status') == 'in-progress' %}selected{% endif %}>In Progress</option>
+                                <option value="resolved" {% if filters.get('status') == 'resolved' %}selected{% endif %}>Resolved</option>
+                                <option value="closed" {% if filters.get('status') == 'closed' %}selected{% endif %}>Closed</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Priority</label>
+                            <select name="priority" class="form-select">
+                                <option value="">All</option>
+                                <option value="low" {% if filters.get('priority') == 'low' %}selected{% endif %}>Low</option>
+                                <option value="medium" {% if filters.get('priority') == 'medium' %}selected{% endif %}>Medium</option>
+                                <option value="high" {% if filters.get('priority') == 'high' %}selected{% endif %}>High</option>
+                                <option value="critical" {% if filters.get('priority') == 'critical' %}selected{% endif %}>Critical</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Type</label>
+                            <select name="type" class="form-select">
+                                <option value="">All</option>
+                                <option value="bug" {% if filters.get('type') == 'bug' %}selected{% endif %}>Bug</option>
+                                <option value="feature" {% if filters.get('type') == 'feature' %}selected{% endif %}>Feature</option>
+                                <option value="task" {% if filters.get('type') == 'task' %}selected{% endif %}>Task</option>
+                                <option value="enhancement" {% if filters.get('type') == 'enhancement' %}selected{% endif %}>Enhancement</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">&nbsp;</label>
+                            <div>
+                                <button type="submit" class="btn btn-primary w-100">Filter</button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                {% if issues %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th>Reporter</th>
+                                <th>Assignee</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for issue in issues %}
+                            <tr>
+                                <td><a href="{{ url_for('routes.issue_detail', issue_id=issue.id) }}">{{ issue.id[:8] }}</a></td>
+                                <td><a href="{{ url_for('routes.issue_detail', issue_id=issue.id) }}">{{ issue.title }}</a></td>
+                                <td><span class="badge bg-secondary">{{ issue.type.value }}</span></td>
+                                <td><span class="badge badge-priority-{{ issue.priority.value }}">{{ issue.priority.value }}</span></td>
+                                <td><span class="badge badge-status-{{ issue.status.value }}">{{ issue.status.value }}</span></td>
+                                <td>{{ users.get(issue.reporter_id, {}).display_name or issue.reporter_id if users.get(issue.reporter_id) else issue.reporter_id }}</td>
+                                <td>{{ users.get(issue.assignee_id, {}).display_name or issue.assignee_id if issue.assignee_id and users.get(issue.assignee_id) else (issue.assignee_id or '-') }}</td>
+                                <td>{{ issue.created_at.strftime('%Y-%m-%d %H:%M') if issue.created_at else '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No issues found.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

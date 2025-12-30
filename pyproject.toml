@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alphafusion-issuetracker"
+version = "0.1.0"
+description = "Issue Tracker Service for AlphaFusion - tracks bugs, features, and tasks"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    # Note: alphafusion-core is provided by alphafusion-baseimage:latest
+    # Firebase Admin SDK is in base image
+    "Flask>=3.0.0",
+    "Flask-WTF>=1.2.0",
+    "Flask-Talisman>=1.1.0",
+    "Flask-Limiter>=3.5.0",
+    "marshmallow>=3.20.0",
+    "firebase-admin>=6.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+]
+
+[tool.setuptools]
+packages = ["apps"]
+package-dir = {"" = "."}
+
+[tool.black]
+line-length = 120
+target-version = ['py39']
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+

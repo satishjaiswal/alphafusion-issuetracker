@@ -1,0 +1,19 @@
+{
+  "application": "issuetracker",
+  "default_sensitive": false,
+  "sensitive_keys": [
+    "app/issuetracker/secret_key",
+    "integrations/firebase/credentials_path",
+    "integrations/firebase/credentials"
+  ],
+  "non_sensitive_keys": [
+    "services/issuetracker/url",
+    "services/issuetracker/port",
+    "services/issuetracker/host",
+    "app/issuetracker/flask_debug",
+    "app/issuetracker/flask_port",
+    "integrations/firebase/project_id"
+  ],
+  "required_keys": []
+}
+
