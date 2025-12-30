@@ -35,7 +35,7 @@ def require_auth(f):
         if not get_current_user_id():
             if request.is_json or request.path.startswith("/api/"):
                 return jsonify({"error": "Authentication required"}), 401
-            return redirect(url_for("routes.login"))
+            return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -49,7 +49,7 @@ def require_role(*roles):
             if not user:
                 if request.is_json or request.path.startswith("/api/"):
                     return jsonify({"error": "Authentication required"}), 401
-                return redirect(url_for("routes.login"))
+                return redirect(url_for("login"))
             
             user_role = UserRole(user.role.value if hasattr(user.role, 'value') else user.role)
             if user_role not in roles:

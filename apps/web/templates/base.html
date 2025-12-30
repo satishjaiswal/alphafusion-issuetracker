@@ -10,103 +10,187 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    
-    <style>
-        body {
-            background-color: #f8f9fa;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-        }
-        .navbar {
-            background-color: #2c3e50;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .navbar-brand {
-            color: #ecf0f1 !important;
-            font-weight: bold;
-        }
-        .nav-link {
-            color: #bdc3c7 !important;
-        }
-        .nav-link:hover {
-            color: #ecf0f1 !important;
-        }
-        .main-content {
-            padding: 2rem 0;
-        }
-        .card {
-            border: none;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 1.5rem;
-        }
-        .badge-status-open { background-color: #28a745; }
-        .badge-status-in-progress { background-color: #ffc107; color: #000; }
-        .badge-status-resolved { background-color: #17a2b8; }
-        .badge-status-closed { background-color: #6c757d; }
-        .badge-priority-low { background-color: #6c757d; }
-        .badge-priority-medium { background-color: #17a2b8; }
-        .badge-priority-high { background-color: #ffc107; color: #000; }
-        .badge-priority-critical { background-color: #dc3545; }
-    </style>
+    <!-- TradePro Theme CSS (loads first for base styles) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tradepro-theme.css') }}">
+    <!-- Theme Utilities (loads after theme for utility classes) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-utilities.css') }}">
+    <!-- Navigation CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/navigation.css') }}">
+    <!-- Issue Tracker Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/issuetracker.css') }}">
+    <!-- Theme Selector (load synchronously in head to set theme before content renders) -->
+    <script src="{{ url_for('static', filename='js/theme-selector.js') }}"></script>
     
     {% block extra_head %}{% endblock %}
 </head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('routes.dashboard') }}">
-                <i class="bi bi-bug-fill"></i> Issue Tracker
+<body data-page="{% block page_name %}issuetracker{% endblock %}">
+    <nav class="main-navbar">
+        <div class="navbar-container">
+            <a class="navbar-brand" href="{{ url_for('dashboard') }}">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16" class="brand-icon">
+                    <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM4.5 7.5a.5.5 0 0 0 0 1h7a.5.5 0 0 0 0-1h-7z"/>
+                </svg>
+                <span class="brand-text">Issue Tracker</span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('routes.dashboard') }}">Dashboard</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('routes.issues_list') }}">Issues</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('routes.create_issue') }}">Create Issue</a>
-                    </li>
-                </ul>
-                <ul class="navbar-nav">
-                    {% if session.get('user_id') %}
-                    <li class="nav-item">
-                        <span class="navbar-text text-light me-3">{{ session.get('user_id') }}</span>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('routes.logout') }}">Logout</a>
-                    </li>
-                    {% else %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('routes.login') }}">Login</a>
-                    </li>
-                    {% endif %}
-                </ul>
+            <div class="nav-actions">
+                <!-- Theme selector will be inserted here by theme-selector.js -->
+                <span class="nav-status" id="last-updated" title="Last update time">
+                    <span id="update-time">-</span>
+                </span>
+                {% if session.get('user_id') %}
+                <span class="navbar-text me-3" style="color: var(--text-secondary);">{{ session.get('user_id') }}</span>
+                <a href="{{ url_for('logout') }}" class="nav-action-btn" title="Logout">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
+                        <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
+                    </svg>
+                </a>
+                {% else %}
+                <a href="{{ url_for('login') }}" class="nav-action-btn" title="Login">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/>
+                    </svg>
+                </a>
+                {% endif %}
             </div>
         </div>
     </nav>
     
-    <div class="container-fluid main-content">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        
-        {% block content %}{% endblock %}
+    <!-- Action Bar Navigation -->
+    <nav class="action-bar" id="action-bar">
+        <div class="action-bar-container">
+            <div class="action-groups-section" id="action-groups-section">
+                <a href="{{ url_for('dashboard') }}" class="action-group-icon {% if request.endpoint == 'dashboard' %}active{% endif %}" title="Dashboard">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M8.707 1.5a1 1 0 0 0-1.414 0L.646 8.146a.5.5 0 0 0 .708.708L2 8.207V13.5A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5V8.207l.646.647a.5.5 0 0 0 .708-.708L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.707 1.5Z"/>
+                    </svg>
+                    <span class="action-group-label">Dashboard</span>
+                </a>
+                <a href="{{ url_for('issues_list') }}" class="action-group-icon {% if request.endpoint == 'issues_list' %}active{% endif %}" title="Issues">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                        <path d="M9.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/>
+                    </svg>
+                    <span class="action-group-label">Issues</span>
+                </a>
+                <a href="{{ url_for('create_issue') }}" class="action-group-icon {% if request.endpoint == 'create_issue' %}active{% endif %}" title="Create Issue">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                    </svg>
+                    <span class="action-group-label">Create</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="main-content-wrapper">
+        <div class="container-fluid mt-3" style="padding-top: 1rem;">
+            <!-- Page Header -->
+            {% block page_header %}
+            <div class="page-header mb-4">
+                <div class="page-header-content">
+                    <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
+                    <p class="page-description">{% block page_description %}{% endblock %}</p>
+                </div>
+                {% block quick_actions %}
+                <div class="quick-actions">
+                    <!-- Pages can override with action buttons -->
+                </div>
+                {% endblock %}
+            </div>
+            {% endblock %}
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+    
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;">
+        <!-- Toasts will be dynamically added here -->
     </div>
     
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Update Last Update Time Every Second -->
+    <script>
+        function updateLastUpdateTime() {
+            const updateTimeEl = document.getElementById('update-time');
+            if (updateTimeEl) {
+                const now = new Date();
+                updateTimeEl.textContent = now.toLocaleTimeString('en-US', { 
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+            }
+        }
+        // Update immediately
+        updateLastUpdateTime();
+        // Update every second
+        setInterval(updateLastUpdateTime, 1000);
+    </script>
+    
+    <!-- Toast Notification Helper -->
+    <script>
+        function showToast(message, type = 'info') {
+            const toastContainer = document.querySelector('.toast-container');
+            if (!toastContainer) return;
+            
+            const toastId = 'toast-' + Date.now();
+            const toastClass = {
+                'success': 'cyber-toast-success',
+                'error': 'cyber-toast-error',
+                'warning': 'cyber-toast-warning',
+                'info': 'cyber-toast-info'
+            }[type] || 'cyber-toast-info';
+            
+            const icon = {
+                'success': '✓',
+                'error': '✗',
+                'warning': '⚠',
+                'info': 'ℹ'
+            }[type] || 'ℹ';
+            
+            const toastHtml = `
+                <div id="${toastId}" class="toast cyber-toast ${toastClass}" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="toast-header">
+                        <strong class="me-auto">${icon} ${type.charAt(0).toUpperCase() + type.slice(1)}</strong>
+                        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${message.replace(/\n/g, '<br>')}
+                    </div>
+                </div>
+            `;
+            
+            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+            const toastElement = document.getElementById(toastId);
+            const toast = new bootstrap.Toast(toastElement, {
+                autohide: true,
+                delay: type === 'error' ? 5000 : 3000
+            });
+            toast.show();
+            
+            // Remove element after it's hidden
+            toastElement.addEventListener('hidden.bs.toast', () => {
+                toastElement.remove();
+            });
+        }
+    </script>
+    
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>
-

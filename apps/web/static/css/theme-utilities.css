@@ -1,0 +1,170 @@
+/**
+ * Theme Utilities
+ * Universal utility classes that use theme variables for consistent theming
+ */
+
+/* Background utilities */
+.bg-theme-primary {
+    background: var(--bg-primary) !important;
+}
+
+.bg-theme-panel {
+    background: var(--bg-panel) !important;
+}
+
+.bg-theme-card {
+    background: var(--bg-card) !important;
+}
+
+.bg-theme-hover {
+    background: var(--bg-hover) !important;
+}
+
+/* Text color utilities */
+.text-theme-primary {
+    color: var(--text-primary) !important;
+}
+
+.text-theme-secondary {
+    color: var(--text-secondary) !important;
+}
+
+.text-theme-muted {
+    color: var(--text-muted) !important;
+}
+
+/* Border utilities */
+.border-theme {
+    border-color: var(--border) !important;
+}
+
+.border-theme-light {
+    border-color: var(--border-light) !important;
+}
+
+/* Accent color utilities */
+.text-accent-primary {
+    color: var(--accent-primary) !important;
+}
+
+.text-accent-positive {
+    color: var(--accent-positive) !important;
+}
+
+.text-accent-negative {
+    color: var(--accent-negative) !important;
+}
+
+.text-accent-warning {
+    color: var(--accent-warning) !important;
+}
+
+.bg-accent-primary {
+    background: var(--accent-primary) !important;
+}
+
+.bg-accent-positive {
+    background: var(--accent-positive) !important;
+}
+
+.bg-accent-negative {
+    background: var(--accent-negative) !important;
+}
+
+.bg-accent-warning {
+    background: var(--accent-warning) !important;
+}
+
+/* Shadow utilities */
+.shadow-theme-sm {
+    box-shadow: var(--shadow-sm) !important;
+}
+
+.shadow-theme-md {
+    box-shadow: var(--shadow-md) !important;
+}
+
+.shadow-theme-lg {
+    box-shadow: var(--shadow-lg) !important;
+}
+
+/* Border radius utilities */
+.rounded-theme {
+    border-radius: var(--radius) !important;
+}
+
+.rounded-theme-sm {
+    border-radius: var(--radius-sm) !important;
+}
+
+.rounded-theme-lg {
+    border-radius: var(--radius-lg) !important;
+}
+
+/* Opacity utilities using theme colors */
+.bg-accent-primary-10 {
+    background: color-mix(in srgb, var(--accent-primary) 10%, transparent) !important;
+}
+
+.bg-accent-primary-20 {
+    background: color-mix(in srgb, var(--accent-primary) 20%, transparent) !important;
+}
+
+.bg-accent-positive-10 {
+    background: color-mix(in srgb, var(--accent-positive) 10%, transparent) !important;
+}
+
+.bg-accent-positive-20 {
+    background: color-mix(in srgb, var(--accent-positive) 20%, transparent) !important;
+}
+
+.bg-accent-negative-10 {
+    background: color-mix(in srgb, var(--accent-negative) 10%, transparent) !important;
+}
+
+.bg-accent-negative-20 {
+    background: color-mix(in srgb, var(--accent-negative) 20%, transparent) !important;
+}
+
+.bg-accent-warning-10 {
+    background: color-mix(in srgb, var(--accent-warning) 10%, transparent) !important;
+}
+
+.bg-accent-warning-20 {
+    background: color-mix(in srgb, var(--accent-warning) 20%, transparent) !important;
+}
+
+/* Glow effects using theme colors */
+.glow-accent-primary {
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent-primary) 30%, transparent) !important;
+}
+
+.glow-accent-positive {
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent-positive) 30%, transparent) !important;
+}
+
+.glow-accent-negative {
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent-negative) 30%, transparent) !important;
+}
+
+.glow-accent-warning {
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent-warning) 30%, transparent) !important;
+}
+
+/* Text shadow utilities */
+.text-shadow-accent-primary {
+    text-shadow: 0 0 8px color-mix(in srgb, var(--accent-primary) 30%, transparent) !important;
+}
+
+.text-shadow-accent-positive {
+    text-shadow: 0 0 8px color-mix(in srgb, var(--accent-positive) 30%, transparent) !important;
+}
+
+/* Universal theme-aware transitions */
+* {
+    transition: background-color 0.3s ease, 
+                color 0.3s ease, 
+                border-color 0.3s ease,
+                box-shadow 0.3s ease;
+}
+

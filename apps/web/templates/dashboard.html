@@ -1,89 +1,104 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard{% endblock %}
+{% block title %}Issue Tracker Dashboard{% endblock %}
+
+{% block page_title %}Issue Tracker Dashboard{% endblock %}
+{% block page_description %}Overview of all issues and their status{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h1 class="mb-4">Issue Tracker Dashboard</h1>
-    </div>
-</div>
-
 <div class="row mb-4">
     <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-body">
-                <h5 class="card-title">Total Issues</h5>
-                <h2 class="text-primary">{{ stats.get('total', 0) }}</h2>
+        <div class="stat-card">
+            <div class="stat-card-content">
+                <div class="stat-card-label">Total Issues</div>
+                <div class="stat-card-value text-accent-primary">{{ stats.total }}</div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-body">
-                <h5 class="card-title">Open</h5>
-                <h2 class="text-success">{{ stats.get('open', 0) }}</h2>
+        <div class="stat-card">
+            <div class="stat-card-content">
+                <div class="stat-card-label">Open</div>
+                <div class="stat-card-value text-accent-positive">{{ stats.open }}</div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-body">
-                <h5 class="card-title">In Progress</h5>
-                <h2 class="text-warning">{{ stats.get('in_progress', 0) }}</h2>
+        <div class="stat-card">
+            <div class="stat-card-content">
+                <div class="stat-card-label">In Progress</div>
+                <div class="stat-card-value text-accent-warning">{{ stats.in_progress }}</div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-body">
-                <h5 class="card-title">Resolved</h5>
-                <h2 class="text-info">{{ stats.get('resolved', 0) }}</h2>
+        <div class="stat-card">
+            <div class="stat-card-content">
+                <div class="stat-card-label">Resolved</div>
+                <div class="stat-card-value text-accent-primary">{{ stats.resolved }}</div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Recent Issues</h5>
-            </div>
-            <div class="card-body">
-                {% if recent_issues %}
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Title</th>
-                                <th>Type</th>
-                                <th>Priority</th>
-                                <th>Status</th>
-                                <th>Created</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for issue in recent_issues %}
-                            <tr>
-                                <td><a href="{{ url_for('routes.issue_detail', issue_id=issue.id) }}">{{ issue.id[:8] }}</a></td>
-                                <td><a href="{{ url_for('routes.issue_detail', issue_id=issue.id) }}">{{ issue.title }}</a></td>
-                                <td><span class="badge bg-secondary">{{ issue.type.value }}</span></td>
-                                <td><span class="badge badge-priority-{{ issue.priority.value }}">{{ issue.priority.value }}</span></td>
-                                <td><span class="badge badge-status-{{ issue.status.value }}">{{ issue.status.value }}</span></td>
-                                <td>{{ issue.created_at.strftime('%Y-%m-%d %H:%M') if issue.created_at else '-' }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <p class="text-muted">No issues found.</p>
-                {% endif %}
-            </div>
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Recent Issues</h5>
+    </div>
+    <div class="card-body">
+        {% if recent_issues %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Title</th>
+                        <th>Status</th>
+                        <th>Priority</th>
+                        <th>Type</th>
+                        <th>Reporter</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for issue in recent_issues %}
+                    <tr>
+                        <td><a href="{{ url_for('issue_detail', issue_id=issue.id) }}">{{ issue.id[:8] }}</a></td>
+                        <td><a href="{{ url_for('issue_detail', issue_id=issue.id) }}">{{ issue.title }}</a></td>
+                        <td>
+                            <span class="badge badge-status-{{ issue.status.value.replace('_', '-') }}">
+                                {{ issue.status.value.replace('_', ' ').title() }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge badge-priority-{{ issue.priority.value }}">
+                                {{ issue.priority.value.title() }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">{{ issue.type.value.title() }}</span>
+                        </td>
+                        <td>{{ issue.reporter_id }}</td>
+                        <td>
+                            {% if issue.created_at %}
+                                {{ issue.created_at.strftime('%Y-%m-%d %H:%M') }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">📋</div>
+            <div class="empty-state-title">No issues found</div>
+            <div class="empty-state-description">Get started by creating your first issue.</div>
+            <a href="{{ url_for('create_issue') }}" class="btn btn-primary mt-3">Create Issue</a>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
-

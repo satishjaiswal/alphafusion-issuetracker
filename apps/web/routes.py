@@ -88,7 +88,7 @@ def register_routes(app):
             issue = firebase_helper.get_issue(issue_id)
             if not issue:
                 flash("Issue not found", "error")
-                return redirect(url_for("routes.issues_list"))
+                return redirect(url_for("issues_list"))
             
             # Get comments
             comments = firebase_helper.get_comments(issue_id)
@@ -110,7 +110,7 @@ def register_routes(app):
         except Exception as e:
             logger.error(f"Error getting issue detail: {e}", exc_info=True)
             flash("Error loading issue", "error")
-            return redirect(url_for("routes.issues_list"))
+            return redirect(url_for("issues_list"))
     
     @app.route("/issues/create", methods=["GET", "POST"])
     @require_auth
@@ -127,7 +127,7 @@ def register_routes(app):
             user_id = get_current_user_id()
             if not user_id:
                 flash("Authentication required", "error")
-                return redirect(url_for("routes.login"))
+                return redirect(url_for("login"))
             
             # Create issue
             issue = Issue(
@@ -145,7 +145,7 @@ def register_routes(app):
             
             if issue_id:
                 flash("Issue created successfully", "success")
-                return redirect(url_for("routes.issue_detail", issue_id=issue_id))
+                return redirect(url_for("issue_detail", issue_id=issue_id))
             else:
                 flash("Failed to create issue", "error")
                 return render_template("create_issue.html")
@@ -166,7 +166,7 @@ def register_routes(app):
             issue = firebase_helper.get_issue(issue_id)
             if not issue:
                 flash("Issue not found", "error")
-                return redirect(url_for("routes.issues_list"))
+                return redirect(url_for("issues_list"))
             
             # Validate request
             form_data = request.form.to_dict()
@@ -202,14 +202,14 @@ def register_routes(app):
             else:
                 flash("Failed to update issue", "error")
             
-            return redirect(url_for("routes.issue_detail", issue_id=issue_id))
+            return redirect(url_for("issue_detail", issue_id=issue_id))
         except ValueError as e:
             flash(f"Validation error: {str(e)}", "error")
-            return redirect(url_for("routes.issue_detail", issue_id=issue_id))
+            return redirect(url_for("issue_detail", issue_id=issue_id))
         except Exception as e:
             logger.error(f"Error updating issue: {e}", exc_info=True)
             flash("Error updating issue", "error")
-            return redirect(url_for("routes.issue_detail", issue_id=issue_id))
+            return redirect(url_for("issue_detail", issue_id=issue_id))
     
     @app.route("/issues/<issue_id>/comment", methods=["POST"])
     @require_auth
@@ -220,7 +220,7 @@ def register_routes(app):
             issue = firebase_helper.get_issue(issue_id)
             if not issue:
                 flash("Issue not found", "error")
-                return redirect(url_for("routes.issues_list"))
+                return redirect(url_for("issues_list"))
             
             # Validate request
             form_data = request.form.to_dict()
@@ -240,14 +240,14 @@ def register_routes(app):
             else:
                 flash("Failed to add comment", "error")
             
-            return redirect(url_for("routes.issue_detail", issue_id=issue_id))
+            return redirect(url_for("issue_detail", issue_id=issue_id))
         except ValueError as e:
             flash(f"Validation error: {str(e)}", "error")
-            return redirect(url_for("routes.issue_detail", issue_id=issue_id))
+            return redirect(url_for("issue_detail", issue_id=issue_id))
         except Exception as e:
             logger.error(f"Error adding comment: {e}", exc_info=True)
             flash("Error adding comment", "error")
-            return redirect(url_for("routes.issue_detail", issue_id=issue_id))
+            return redirect(url_for("issue_detail", issue_id=issue_id))
     
     @app.route("/login", methods=["GET", "POST"])
     def login():
@@ -275,7 +275,7 @@ def register_routes(app):
             if user:
                 login_user(user_id)
                 flash("Logged in successfully", "success")
-                return redirect(url_for("routes.dashboard"))
+                return redirect(url_for("dashboard"))
             else:
                 flash("Failed to login", "error")
                 return render_template("login.html")
@@ -289,5 +289,11 @@ def register_routes(app):
         """Logout"""
         logout_user()
         flash("Logged out successfully", "success")
-        return redirect(url_for("routes.dashboard"))
+        return redirect(url_for("dashboard"))
+    
+    @app.route("/favicon.ico")
+    def favicon():
+        """Handle favicon requests"""
+        from flask import abort
+        abort(404)
 
