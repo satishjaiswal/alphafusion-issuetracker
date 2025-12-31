@@ -36,8 +36,9 @@ line-length = 120
 target-version = ['py39']
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/unit", "tests/integration"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
+norecursedirs = [".git", ".svn", ".hg", "__pycache__", ".pytest_cache", ".mypy_cache", "venv", "env", ".venv", "build", "dist", "*.egg-info"]
 
