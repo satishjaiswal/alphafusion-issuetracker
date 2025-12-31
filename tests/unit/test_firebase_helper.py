@@ -94,9 +94,9 @@ class TestFirebaseHelper:
         helper.db = Mock()
         
         mock_collection = Mock()
-        mock_doc = Mock()
-        mock_doc.id = "issue-123"
-        mock_collection.add.return_value = (mock_doc, Mock())
+        mock_doc_ref = Mock()
+        mock_doc_ref.id = "issue-123"
+        mock_collection.add.return_value = (Mock(), mock_doc_ref)
         helper.db.collection.return_value = mock_collection
         
         issue = Issue(
@@ -146,6 +146,7 @@ class TestFirebaseHelper:
         
         mock_collection = Mock()
         mock_query = Mock()
+        mock_limited_query = Mock()
         mock_docs = [
             Mock(to_dict=lambda: {
                 "title": "Issue 1",
@@ -164,7 +165,12 @@ class TestFirebaseHelper:
                 "createdAt": datetime.now().isoformat()
             })
         ]
-        mock_query.stream.return_value = mock_docs
+        mock_ordered_query = Mock()
+        mock_limited_query = Mock()
+        mock_limited_query.stream.return_value = mock_docs
+        mock_ordered_query.limit.return_value = mock_limited_query
+        mock_query.order_by.return_value = mock_ordered_query
+        mock_collection.order_by.return_value = mock_ordered_query  # For when no filters
         mock_collection.where.return_value = mock_query
         helper.db.collection.return_value = mock_collection
         
@@ -183,10 +189,20 @@ class TestFirebaseHelper:
         mock_issue_collection = Mock()
         mock_issue_doc = Mock()
         mock_comments_collection = Mock()
+        mock_activities_collection = Mock()
         mock_comment_doc = Mock()
         mock_comment_doc.id = "comment-123"
-        mock_comments_collection.add.return_value = (mock_comment_doc, Mock())
-        mock_issue_doc.collection.return_value = mock_comments_collection
+        mock_comments_collection.add.return_value = (Mock(), mock_comment_doc)
+
+        # Mock collection() to return different collections based on name
+        def mock_collection(name):
+            if name == "comments":
+                return mock_comments_collection
+            elif name == "activities":
+                return mock_activities_collection
+            return Mock()
+
+        mock_issue_doc.collection.side_effect = mock_collection
         mock_issue_collection.document.return_value = mock_issue_doc
         helper.db.collection.return_value = mock_issue_collection
         
@@ -197,10 +213,11 @@ class TestFirebaseHelper:
             created_at=datetime.now()
         )
         
-        comment_id = helper.add_comment("issue-123", comment)
+        comment_id = helper.create_comment("issue-123", comment)
         
         assert comment_id == "comment-123"
-        mock_comments_collection.add.assert_called_once()
+        # Should be called twice: once for comment, once for activity
+        assert mock_comments_collection.add.call_count == 1
     
     @patch('apps.web.utils.firebase_helper.firestore')
     def test_get_comments(self, mock_firestore):

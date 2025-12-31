@@ -13,9 +13,10 @@ from flask import Flask
 from datetime import datetime
 
 # Mock Flask extensions before any imports
-sys.modules['flask_talisman'] = MagicMock()
-sys.modules['flask_limiter'] = MagicMock()
-sys.modules['flask_wtf.csrf'] = MagicMock()
+# Comment out sys.modules mocking to see actual issues
+# sys.modules['flask_talisman'] = MagicMock()
+# sys.modules['flask_limiter'] = MagicMock()
+# sys.modules['flask_wtf.csrf'] = MagicMock()
 
 from apps.web.models import Issue, IssueStatus, IssuePriority, IssueType, Comment
 
@@ -34,7 +35,7 @@ def app():
     mock_limiter.limit.return_value = lambda f: f
     
     # Register API routes manually (avoiding blueprint import issues)
-    with patch('apps.web.api.limiter', mock_limiter):
+    with patch('apps.web.extensions.limiter', mock_limiter):
         with patch('apps.web.api.firebase_helper'):
             from apps.web.api import api_bp
             app.register_blueprint(api_bp)
@@ -246,7 +247,7 @@ class TestAddComment:
             created_at=datetime.now()
         )
         mock_firebase_helper.get_issue.return_value = mock_issue
-        mock_firebase_helper.add_comment.return_value = "comment-123"
+        mock_firebase_helper.create_comment.return_value = "comment-123"
         mock_firebase_helper.get_user.return_value = None
         mock_firebase_helper.create_user.return_value = Mock()
         
@@ -305,7 +306,7 @@ class TestGetComments:
         
         assert response.status_code == 200
         data = response.get_json()
-        assert len(data) == 2
-        assert data[0]['id'] == "comment-1"
-        assert data[1]['id'] == "comment-2"
+        assert len(data['comments']) == 2
+        assert data['comments'][0]['id'] == "comment-1"
+        assert data['comments'][1]['id'] == "comment-2"
 
