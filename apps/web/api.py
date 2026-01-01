@@ -15,11 +15,20 @@ from apps.web.schemas import (
 
 logger = logging.getLogger(__name__)
 
-# Initialize Firebase helper
-firebase_helper = FirebaseHelper()
-
 # Create API blueprint
 api_bp = Blueprint("api", __name__, url_prefix="/api")
+
+
+def _get_firebase_provider():
+    """Get Firebase provider from Flask app context"""
+    from flask import current_app
+    return getattr(current_app, 'firebase_helper_provider', None)
+
+
+def _get_redis_provider():
+    """Get Redis provider from Flask app context"""
+    from flask import current_app
+    return getattr(current_app, 'redis_helper_provider', None)
 
 # Exempt entire API blueprint from CSRF protection
 # This must be done after csrf is initialized in app.py
@@ -29,9 +38,10 @@ api_bp = Blueprint("api", __name__, url_prefix="/api")
 @api_bp.route("/health", methods=["GET"])
 def health_check():
     """Health check endpoint"""
+    firebase_provider = _get_firebase_provider()
     return jsonify({
         "status": "healthy",
-        "firebase_available": firebase_helper.is_available()
+        "firebase_available": firebase_provider.is_available() if firebase_provider else False
     }), 200
 
 
@@ -63,14 +73,30 @@ def create_issue():
             tags=data.get("tags", [])
         )
         
+        # Get providers from app context
+        firebase_provider = _get_firebase_provider()
+        redis_provider = _get_redis_provider()
+        
+        if not firebase_provider:
+            return jsonify({"error": "Firebase provider not available"}), 503
+        
         # Save to Firebase (this also stores in Redis automatically)
-        issue_id = firebase_helper.create_issue(issue)
+        issue_id = firebase_provider.create_issue(issue)
+        
+        # Ensure issue is stored in Redis if Redis provider is available
+        if redis_provider and redis_provider.is_available() and issue_id:
+            issue.id = issue_id
+            redis_provider.store_issue(issue)
         
         if not issue_id:
             return jsonify({"error": "Failed to create issue"}), 500
         
         # Get created issue
-        created_issue = firebase_helper.get_issue(issue_id)
+        firebase_provider = _get_firebase_provider()
+        if not firebase_provider:
+            return jsonify({"error": "Firebase provider not available"}), 503
+        
+        created_issue = firebase_provider.get_issue(issue_id)
         if not created_issue:
             return jsonify({"error": "Issue created but not found"}), 500
         
@@ -97,7 +123,11 @@ def get_issue(issue_id: str):
         # Validate path parameter
         validate_path_params(IssuePathSchema, {"issue_id": issue_id})
         
-        issue = firebase_helper.get_issue(issue_id)
+        firebase_provider = _get_firebase_provider()
+        if not firebase_provider:
+            return jsonify({"error": "Firebase provider not available"}), 503
+        
+        issue = firebase_provider.get_issue(issue_id)
         
         if not issue:
             return jsonify({"error": "Issue not found"}), 404
@@ -126,8 +156,15 @@ def update_issue(issue_id: str):
         # Validate request body
         data = validate_json_body(IssueUpdateSchema, request.get_json() or {})
         
+        # Get providers from app context
+        firebase_provider = _get_firebase_provider()
+        redis_provider = _get_redis_provider()
+        
+        if not firebase_provider:
+            return jsonify({"error": "Firebase provider not available"}), 503
+        
         # Get current issue
-        issue = firebase_helper.get_issue(issue_id)
+        issue = firebase_provider.get_issue(issue_id)
         if not issue:
             return jsonify({"error": "Issue not found"}), 404
         
@@ -152,13 +189,19 @@ def update_issue(issue_id: str):
         user_id = request.headers.get("X-User-Id") or issue.reporter_id
         
         # Update issue
-        success = firebase_helper.update_issue(issue_id, changes, user_id)
+        success = firebase_provider.update_issue(issue_id, changes, user_id)
         
         if not success:
             return jsonify({"error": "Failed to update issue"}), 500
         
+        # Update in Redis if available
+        if redis_provider and redis_provider.is_available():
+            updated_issue = firebase_provider.get_issue(issue_id)
+            if updated_issue:
+                redis_provider.update_issue(updated_issue)
+        
         # Get updated issue
-        updated_issue = firebase_helper.get_issue(issue_id)
+        updated_issue = firebase_provider.get_issue(issue_id)
         if not updated_issue:
             return jsonify({"error": "Issue updated but not found"}), 500
         
@@ -185,8 +228,15 @@ def create_comment(issue_id: str):
         # Validate request body
         data = validate_json_body(CommentCreateSchema, request.get_json() or {})
         
+        # Get providers from app context
+        firebase_provider = _get_firebase_provider()
+        redis_provider = _get_redis_provider()
+        
+        if not firebase_provider:
+            return jsonify({"error": "Firebase provider not available"}), 503
+        
         # Check if issue exists
-        issue = firebase_helper.get_issue(issue_id)
+        issue = firebase_provider.get_issue(issue_id)
         if not issue:
             return jsonify({"error": "Issue not found"}), 404
         
@@ -200,24 +250,19 @@ def create_comment(issue_id: str):
             content=data["content"]
         )
         
-        comment_id = firebase_helper.create_comment(issue_id, comment)
+        comment_id = firebase_provider.create_comment(issue_id, comment)
         
         if not comment_id:
             return jsonify({"error": "Failed to create comment"}), 500
         
         # Update issue in Redis if it exists there (to refresh TTL)
-        try:
-            from apps.web.utils.redis_helper import RedisHelper
-            redis_helper = RedisHelper()
-            if redis_helper.is_available():
-                updated_issue = firebase_helper.get_issue(issue_id)
-                if updated_issue:
-                    redis_helper.update_issue(updated_issue)
-        except Exception as e:
-            logger.debug(f"Failed to update issue in Redis after comment (non-critical): {e}")
+        if redis_provider and redis_provider.is_available():
+            updated_issue = firebase_provider.get_issue(issue_id)
+            if updated_issue:
+                redis_provider.update_issue(updated_issue)
         
         # Get created comment
-        comments = firebase_helper.get_comments(issue_id)
+        comments = firebase_provider.get_comments(issue_id)
         created_comment = next((c for c in comments if c.id == comment_id), None)
         
         if not created_comment:
@@ -243,13 +288,18 @@ def get_comments(issue_id: str):
         # Validate path parameter
         validate_path_params(IssuePathSchema, {"issue_id": issue_id})
         
+        # Get provider from app context
+        firebase_provider = _get_firebase_provider()
+        if not firebase_provider:
+            return jsonify({"error": "Firebase provider not available"}), 503
+        
         # Check if issue exists
-        issue = firebase_helper.get_issue(issue_id)
+        issue = firebase_provider.get_issue(issue_id)
         if not issue:
             return jsonify({"error": "Issue not found"}), 404
         
         # Get comments
-        comments = firebase_helper.get_comments(issue_id)
+        comments = firebase_provider.get_comments(issue_id)
         
         comments_list = []
         for comment in comments:
@@ -273,8 +323,13 @@ def _ensure_service_user(user_id: str):
     Non-blocking - logs warning but doesn't raise exception.
     """
     try:
+        firebase_provider = _get_firebase_provider()
+        if not firebase_provider:
+            logger.warning("Firebase provider not available, cannot ensure service user")
+            return
+        
         # Check if user exists
-        user = firebase_helper.get_user(user_id)
+        user = firebase_provider.get_user(user_id)
         if user:
             return  # User already exists
         
@@ -282,7 +337,7 @@ def _ensure_service_user(user_id: str):
         email = f"{user_id}@service.alphafusion.local"
         display_name = user_id.replace("-", " ").replace("_", " ").title()
         
-        created_user = firebase_helper.create_user(
+        created_user = firebase_provider.create_user(
             uid=user_id,
             email=email,
             display_name=display_name,

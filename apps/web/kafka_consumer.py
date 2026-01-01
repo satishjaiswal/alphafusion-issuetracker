@@ -19,33 +19,46 @@ class IssueTrackerConsumer:
     Kafka consumer that listens to issues topic and writes to Firebase.
     
     Runs in a background thread and processes issues as they arrive.
+    
+    Uses Provider Pattern for dependency injection of Firebase and Redis providers.
     """
     
-    def __init__(self, queue_consumer=None, cache_client=None):
+    def __init__(
+        self,
+        queue_consumer=None,
+        cache_client=None,
+        firebase_provider=None,
+        redis_provider=None
+    ):
         """
         Initialize Kafka consumer.
         
         Args:
             queue_consumer: Optional QueueConsumer instance. If None, creates default from factory.
             cache_client: Optional CacheClient instance. If None, RedisHelper creates default.
+            firebase_provider: Optional FirebaseHelperProvider instance. If None, creates default.
+            redis_provider: Optional RedisHelperProvider instance. If None, creates default.
         """
         self.consumer = queue_consumer
-        self.firebase_helper = None
-        self.redis_helper = None
+        self.firebase_provider = firebase_provider
+        self.redis_provider = redis_provider
         self.running = False
         self.thread: Optional[threading.Thread] = None
         self._initialize(cache_client=cache_client)
     
     def _initialize(self, cache_client=None):
-        """Initialize consumer and helpers"""
+        """Initialize consumer and providers"""
         try:
-            # Initialize Firebase helper
-            from apps.web.utils.firebase_helper import FirebaseHelper
-            self.firebase_helper = FirebaseHelper()
+            # Initialize providers if not provided
+            if self.firebase_provider is None:
+                from apps.web.utils.provider_factory import IssueTrackerProviderFactory
+                self.firebase_provider = IssueTrackerProviderFactory.create_firebase_helper_provider()
             
-            # Initialize Redis helper (with optional cache_client)
-            from apps.web.utils.redis_helper import RedisHelper
-            self.redis_helper = RedisHelper(cache_client=cache_client)
+            if self.redis_provider is None:
+                from apps.web.utils.provider_factory import IssueTrackerProviderFactory
+                self.redis_provider = IssueTrackerProviderFactory.create_redis_helper_provider(
+                    cache_client=cache_client
+                )
             
             # Initialize Kafka consumer if not provided
             if self.consumer is None:
@@ -134,8 +147,8 @@ class IssueTrackerConsumer:
         Args:
             issue_data: Issue data dictionary from Kafka message
         """
-        if not self.firebase_helper or not self.firebase_helper.is_available():
-            logger.warning("Firebase not available, cannot process issue")
+        if not self.firebase_provider or not self.firebase_provider.is_available():
+            logger.warning("Firebase provider not available, cannot process issue")
             return
         
         try:
@@ -161,16 +174,16 @@ class IssueTrackerConsumer:
                 tags=tags
             )
             
-            # Create issue in Firebase (this also stores in Redis automatically)
-            issue_id = self.firebase_helper.create_issue(issue)
+            # Create issue in Firebase
+            issue_id = self.firebase_provider.create_issue(issue)
             
             if issue_id:
                 logger.info(f"Created issue {issue_id} from Kafka: {title[:50]}")
                 
-                # Also ensure it's in Redis (firebase_helper should do this, but double-check)
-                if self.redis_helper and self.redis_helper.is_available():
+                # Store in Redis if available
+                if self.redis_provider and self.redis_provider.is_available():
                     issue.id = issue_id
-                    self.redis_helper.store_issue(issue)
+                    self.redis_provider.store_issue(issue)
             else:
                 logger.error(f"Failed to create issue in Firebase: {title[:50]}")
         
@@ -187,17 +200,29 @@ def get_consumer() -> Optional[IssueTrackerConsumer]:
     return _consumer_instance
 
 
-def start_consumer(queue_consumer=None, cache_client=None):
+def start_consumer(
+    queue_consumer=None,
+    cache_client=None,
+    firebase_provider=None,
+    redis_provider=None
+):
     """
     Start the global consumer.
     
     Args:
         queue_consumer: Optional QueueConsumer instance. If None, creates default from factory.
         cache_client: Optional CacheClient instance. If None, RedisHelper creates default.
+        firebase_provider: Optional FirebaseHelperProvider instance. If None, creates default.
+        redis_provider: Optional RedisHelperProvider instance. If None, creates default.
     """
     global _consumer_instance
     if _consumer_instance is None:
-        _consumer_instance = IssueTrackerConsumer(queue_consumer=queue_consumer, cache_client=cache_client)
+        _consumer_instance = IssueTrackerConsumer(
+            queue_consumer=queue_consumer,
+            cache_client=cache_client,
+            firebase_provider=firebase_provider,
+            redis_provider=redis_provider
+        )
         _consumer_instance.start()
     return _consumer_instance
 

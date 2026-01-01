@@ -5,8 +5,7 @@ Web UI routes for Issue Tracker
 
 import logging
 from datetime import datetime
-from flask import render_template, request, redirect, url_for, jsonify, flash, session
-from apps.web.utils.firebase_helper import FirebaseHelper
+from flask import render_template, request, redirect, url_for, jsonify, flash, session, current_app
 from apps.web.models import (
     Issue, Comment, IssueStatus, IssuePriority, IssueType, UserRole
 )
@@ -18,8 +17,15 @@ from apps.web.auth import require_auth, get_current_user, get_current_user_id, l
 
 logger = logging.getLogger(__name__)
 
-# Initialize Firebase helper
-firebase_helper = FirebaseHelper()
+
+def _get_firebase_provider():
+    """Get Firebase provider from Flask app context"""
+    return getattr(current_app, 'firebase_helper_provider', None)
+
+
+def _get_redis_provider():
+    """Get Redis provider from Flask app context"""
+    return getattr(current_app, 'redis_helper_provider', None)
 
 
 def register_routes(app):
@@ -29,8 +35,13 @@ def register_routes(app):
     def dashboard():
         """Dashboard - issue overview"""
         try:
+            firebase_provider = _get_firebase_provider()
+            if not firebase_provider:
+                flash("Firebase provider not available", "error")
+                return render_template("dashboard.html", stats={}, recent_issues=[])
+            
             # Get statistics
-            all_issues = firebase_helper.list_issues(limit=1000)
+            all_issues = firebase_provider.list_issues(limit=1000)
             
             stats = {
                 "total": len(all_issues),
@@ -53,17 +64,24 @@ def register_routes(app):
     def issues_recent():
         """List recent issues from Redis (last 1 hour)"""
         try:
-            from apps.web.utils.redis_helper import RedisHelper
+            redis_provider = _get_redis_provider()
+            firebase_provider = _get_firebase_provider()
             
-            redis_helper = RedisHelper()
+            if not redis_provider or not redis_provider.is_available():
+                flash("Redis provider not available", "error")
+                return render_template("issues.html", issues=[], users={}, filters={}, source="recent")
+            
             limit = int(request.args.get("limit", 100))
             
             # Get recent issues from Redis
-            issues = redis_helper.list_recent_issues(limit=limit)
+            issues = redis_provider.list_recent_issues(limit=limit)
             
             # Get users for display
-            users = firebase_helper.list_users()
-            users_dict = {user.uid: user for user in users}
+            if firebase_provider:
+                users = firebase_provider.list_users()
+                users_dict = {user.uid: user for user in users}
+            else:
+                users_dict = {}
             
             return render_template("issues.html", issues=issues, users=users_dict, filters=request.args, source="recent")
         except Exception as e:
@@ -75,6 +93,11 @@ def register_routes(app):
     def issues_all():
         """List all issues from Firebase"""
         try:
+            firebase_provider = _get_firebase_provider()
+            if not firebase_provider:
+                flash("Firebase provider not available", "error")
+                return render_template("issues.html", issues=[], users={}, filters={}, source="all")
+            
             # Get query parameters
             filters = {}
             if request.args.get("status"):
@@ -91,10 +114,10 @@ def register_routes(app):
             limit = int(request.args.get("limit", 100))
             
             # Get issues from Firebase
-            issues = firebase_helper.list_issues(filters=filters, limit=limit)
+            issues = firebase_provider.list_issues(filters=filters, limit=limit)
             
             # Get users for display
-            users = firebase_helper.list_users()
+            users = firebase_provider.list_users()
             users_dict = {user.uid: user for user in users}
             
             return render_template("issues.html", issues=issues, users=users_dict, filters=request.args, source="all")
@@ -112,19 +135,24 @@ def register_routes(app):
     def issue_detail(issue_id: str):
         """Issue detail view"""
         try:
-            issue = firebase_helper.get_issue(issue_id)
+            firebase_provider = _get_firebase_provider()
+            if not firebase_provider:
+                flash("Firebase provider not available", "error")
+                return redirect(url_for("issues_list"))
+            
+            issue = firebase_provider.get_issue(issue_id)
             if not issue:
                 flash("Issue not found", "error")
                 return redirect(url_for("issues_list"))
             
             # Get comments
-            comments = firebase_helper.get_comments(issue_id)
+            comments = firebase_provider.get_comments(issue_id)
             
             # Get activities
-            activities = firebase_helper.get_activities(issue_id)
+            activities = firebase_provider.get_activities(issue_id)
             
             # Get users for display
-            users = firebase_helper.list_users()
+            users = firebase_provider.list_users()
             users_dict = {user.uid: user for user in users}
             
             return render_template(
@@ -201,8 +229,15 @@ def register_routes(app):
     def update_issue(issue_id: str):
         """Update issue"""
         try:
+            firebase_provider = _get_firebase_provider()
+            redis_provider = _get_redis_provider()
+            
+            if not firebase_provider:
+                flash("Firebase provider not available", "error")
+                return redirect(url_for("issues_list"))
+            
             # Get current issue
-            issue = firebase_helper.get_issue(issue_id)
+            issue = firebase_provider.get_issue(issue_id)
             if not issue:
                 flash("Issue not found", "error")
                 return redirect(url_for("issues_list"))
@@ -234,7 +269,13 @@ def register_routes(app):
             
             # Update issue
             user_id = get_current_user_id()
-            success = firebase_helper.update_issue(issue_id, changes, user_id)
+            success = firebase_provider.update_issue(issue_id, changes, user_id)
+            
+            # Update in Redis if available
+            if success and redis_provider and redis_provider.is_available():
+                updated_issue = firebase_provider.get_issue(issue_id)
+                if updated_issue:
+                    redis_provider.update_issue(updated_issue)
             
             if success:
                 flash("Issue updated successfully", "success")
@@ -255,8 +296,15 @@ def register_routes(app):
     def add_comment(issue_id: str):
         """Add comment to issue"""
         try:
+            firebase_provider = _get_firebase_provider()
+            redis_provider = _get_redis_provider()
+            
+            if not firebase_provider:
+                flash("Firebase provider not available", "error")
+                return redirect(url_for("issues_list"))
+            
             # Check if issue exists
-            issue = firebase_helper.get_issue(issue_id)
+            issue = firebase_provider.get_issue(issue_id)
             if not issue:
                 flash("Issue not found", "error")
                 return redirect(url_for("issues_list"))
@@ -272,7 +320,13 @@ def register_routes(app):
                 content=data["content"]
             )
             
-            comment_id = firebase_helper.create_comment(issue_id, comment)
+            comment_id = firebase_provider.create_comment(issue_id, comment)
+            
+            # Update issue in Redis if available (to refresh TTL)
+            if comment_id and redis_provider and redis_provider.is_available():
+                updated_issue = firebase_provider.get_issue(issue_id)
+                if updated_issue:
+                    redis_provider.update_issue(updated_issue)
             
             if comment_id:
                 flash("Comment added successfully", "success")
@@ -295,16 +349,21 @@ def register_routes(app):
             return render_template("login.html")
         
         try:
+            firebase_provider = _get_firebase_provider()
+            if not firebase_provider:
+                flash("Firebase provider not available", "error")
+                return render_template("login.html")
+            
             user_id = request.form.get("user_id")
             if not user_id:
                 flash("User ID is required", "error")
                 return render_template("login.html")
             
             # Check if user exists, create if not
-            user = firebase_helper.get_user(user_id)
+            user = firebase_provider.get_user(user_id)
             if not user:
                 # Create user with viewer role
-                user = firebase_helper.create_user(
+                user = firebase_provider.create_user(
                     uid=user_id,
                     email=f"{user_id}@alphafusion.local",
                     display_name=user_id,

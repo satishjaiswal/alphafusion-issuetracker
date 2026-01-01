@@ -68,16 +68,27 @@ def create_app(queue_consumer=None, cache_client=None):
     # 2. Initialize Extensions
     init_extensions(app)
     
-    # 3. Register Blueprints
+    # 3. Initialize Providers (Provider Pattern for DI)
+    init_providers(app, cache_client=cache_client)
+    
+    # 4. Register Blueprints
     register_blueprints(app)
     
-    # 4. Register Error Handlers
+    # 5. Register Error Handlers
     register_error_handlers(app)
     
-    # 5. Start Kafka consumer for issues (with optional dependencies)
+    # 6. Start Kafka consumer for issues (with optional dependencies)
     try:
         from apps.web.kafka_consumer import start_consumer
-        start_consumer(queue_consumer=queue_consumer, cache_client=cache_client)
+        # Pass providers to consumer
+        firebase_provider = getattr(app, 'firebase_helper_provider', None)
+        redis_provider = getattr(app, 'redis_helper_provider', None)
+        start_consumer(
+            queue_consumer=queue_consumer,
+            cache_client=cache_client,
+            firebase_provider=firebase_provider,
+            redis_provider=redis_provider
+        )
         logger.info("Kafka consumer started for issue tracking")
     except Exception as e:
         logger.warning(f"Failed to start Kafka consumer: {e}. Issue tracking may not work.")
@@ -142,6 +153,44 @@ def init_extensions(app):
     
     # Rate Limiting
     limiter.init_app(app)
+
+
+def init_providers(app, cache_client=None):
+    """
+    Initialize providers and store in Flask app context.
+    
+    Args:
+        app: Flask application instance
+        cache_client: Optional CacheClient instance for Redis provider
+    """
+    try:
+        from apps.web.utils.provider_factory import IssueTrackerProviderFactory
+        
+        # Create providers using factory
+        firebase_provider, redis_provider = IssueTrackerProviderFactory.create_providers(
+            cache_client=cache_client
+        )
+        
+        # Store providers in app context
+        app.firebase_helper_provider = firebase_provider
+        app.redis_helper_provider = redis_provider
+        
+        logger.info("Issue Tracker providers initialized successfully")
+        
+        if not firebase_provider.is_available():
+            logger.warning("Firebase provider not available - ensure Firebase credentials are configured")
+        
+        if not redis_provider.is_available():
+            logger.warning("Redis provider not available - recent issues cache will not work")
+    
+    except Exception as e:
+        logger.error(f"Failed to initialize providers: {e}", exc_info=True)
+        # Create fallback providers (will fail gracefully)
+        from apps.web.utils.provider_factory import IssueTrackerProviderFactory
+        app.firebase_helper_provider = IssueTrackerProviderFactory.create_firebase_helper_provider()
+        app.redis_helper_provider = IssueTrackerProviderFactory.create_redis_helper_provider(
+            cache_client=cache_client
+        )
 
 
 def register_blueprints(app):

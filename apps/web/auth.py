@@ -5,14 +5,15 @@ Authentication and authorization for Issue Tracker
 
 import logging
 from functools import wraps
-from flask import session, redirect, url_for, request, jsonify
+from flask import session, redirect, url_for, request, jsonify, current_app
 from apps.web.models import UserRole
-from apps.web.utils.firebase_helper import FirebaseHelper
 
 logger = logging.getLogger(__name__)
 
-# Initialize Firebase helper
-firebase_helper = FirebaseHelper()
+
+def _get_firebase_provider():
+    """Get Firebase provider from Flask app context"""
+    return getattr(current_app, 'firebase_helper_provider', None)
 
 
 def get_current_user_id():
@@ -25,7 +26,12 @@ def get_current_user():
     user_id = get_current_user_id()
     if not user_id:
         return None
-    return firebase_helper.get_user(user_id)
+    
+    firebase_provider = _get_firebase_provider()
+    if not firebase_provider:
+        return None
+    
+    return firebase_provider.get_user(user_id)
 
 
 def require_auth(f):
@@ -66,7 +72,9 @@ def login_user(user_id: str):
     """Log in a user"""
     session["user_id"] = user_id
     # Update last login
-    firebase_helper.update_user(user_id, last_login=None)  # Will be set to now in update_user
+    firebase_provider = _get_firebase_provider()
+    if firebase_provider:
+        firebase_provider.update_user(user_id, last_login=None)  # Will be set to now in update_user
 
 
 def logout_user():
@@ -76,24 +84,36 @@ def logout_user():
 
 def ensure_default_admin():
     """Ensure default admin user exists"""
-    if not firebase_helper.is_available():
-        logger.warning("Firebase not available, cannot create default admin")
-        return
-    
-    # Check if any admin exists
-    users = firebase_helper.list_users()
-    has_admin = any(user.role == UserRole.ADMIN for user in users)
-    
-    if not has_admin:
-        # Create default admin
-        default_admin = firebase_helper.create_user(
-            uid="admin",
-            email="admin@alphafusion.local",
-            display_name="System Administrator",
-            role=UserRole.ADMIN
-        )
-        if default_admin:
-            logger.info("Created default admin user (uid: admin, email: admin@alphafusion.local)")
-        else:
-            logger.error("Failed to create default admin user")
+    try:
+        # Try to get provider from app context if available
+        # If not available (e.g., during app initialization), create temporary instance
+        try:
+            firebase_provider = _get_firebase_provider()
+        except RuntimeError:
+            # App context not available, create temporary provider
+            from apps.web.utils.provider_factory import IssueTrackerProviderFactory
+            firebase_provider = IssueTrackerProviderFactory.create_firebase_helper_provider()
+        
+        if not firebase_provider or not firebase_provider.is_available():
+            logger.warning("Firebase not available, cannot create default admin")
+            return
+        
+        # Check if any admin exists
+        users = firebase_provider.list_users()
+        has_admin = any(user.role == UserRole.ADMIN for user in users)
+        
+        if not has_admin:
+            # Create default admin
+            default_admin = firebase_provider.create_user(
+                uid="admin",
+                email="admin@alphafusion.local",
+                display_name="System Administrator",
+                role=UserRole.ADMIN
+            )
+            if default_admin:
+                logger.info("Created default admin user (uid: admin, email: admin@alphafusion.local)")
+            else:
+                logger.error("Failed to create default admin user")
+    except Exception as e:
+        logger.debug(f"Default admin creation skipped: {e}")
 
