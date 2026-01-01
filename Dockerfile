@@ -6,6 +6,11 @@ WORKDIR /app
 # Copy alphafusion-issuetracker application code
 COPY alphafusion-issuetracker /app/alphafusion-issuetracker
 
+# Create credentials directory structure
+# Note: Credentials are provided via volume mount from docker-compose.yml
+# The .credentials directory is mounted at runtime, so no need to copy during build
+RUN mkdir -p /app/.credentials/integrations
+
 # Install Flask and web dependencies
 RUN pip install --no-cache-dir \
     Flask>=3.0.0 \
@@ -26,7 +31,7 @@ ENV ALPHAFUSION_CREDENTIALS_DIR=/app/.credentials
 # Logging configuration - logs will be written to /app/logs (volume-mounted)
 ENV ALPHAFUSION_LOG_DIR=/app/logs
 
-# Create non-root user for security
+# Create non-root user for security and set proper ownership for credentials
 RUN mkdir -p /app/.credentials /app/logs && \
     groupadd -r appuser && useradd -r -g appuser -u 1000 appuser && \
     chown -R appuser:appuser /app

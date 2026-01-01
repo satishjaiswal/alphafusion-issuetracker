@@ -34,13 +34,15 @@ except ImportError as e:
     raise
 
 
-def create_app(queue_consumer=None, cache_client=None):
+def create_app(queue_consumer=None, cache_client=None, firebase_provider=None, redis_provider=None):
     """
     Create and configure Flask application.
     
     Args:
         queue_consumer: Optional QueueConsumer instance. If None, creates default from factory.
         cache_client: Optional CacheClient instance. If None, creates default from factory.
+        firebase_provider: Optional FirebaseHelperProvider instance. If None, creates default.
+        redis_provider: Optional RedisHelperProvider instance. If None, creates default.
     
     Returns:
         Configured Flask application
@@ -69,7 +71,19 @@ def create_app(queue_consumer=None, cache_client=None):
     init_extensions(app)
     
     # 3. Initialize Providers (Provider Pattern for DI)
-    init_providers(app, cache_client=cache_client)
+    # Use provided providers or create defaults
+    if firebase_provider is None or redis_provider is None:
+        init_providers(app, cache_client=cache_client)
+        # Get providers from app context if they were created
+        if firebase_provider is None:
+            firebase_provider = getattr(app, 'firebase_helper_provider', None)
+        if redis_provider is None:
+            redis_provider = getattr(app, 'redis_helper_provider', None)
+    else:
+        # Store provided providers in app context
+        app.firebase_helper_provider = firebase_provider
+        app.redis_helper_provider = redis_provider
+        logger.info("Using provided Firebase and Redis providers")
     
     # 4. Register Blueprints
     register_blueprints(app)
@@ -77,12 +91,9 @@ def create_app(queue_consumer=None, cache_client=None):
     # 5. Register Error Handlers
     register_error_handlers(app)
     
-    # 6. Start Kafka consumer for issues (with optional dependencies)
+    # 6. Start Kafka consumer for issues (with injected dependencies)
     try:
         from apps.web.kafka_consumer import start_consumer
-        # Pass providers to consumer
-        firebase_provider = getattr(app, 'firebase_helper_provider', None)
-        redis_provider = getattr(app, 'redis_helper_provider', None)
         start_consumer(
             queue_consumer=queue_consumer,
             cache_client=cache_client,
@@ -195,8 +206,20 @@ def init_providers(app, cache_client=None):
 
 def register_blueprints(app):
     """Register Flask blueprints"""
-    # Register web routes only (API removed - using Kafka instead)
+    # Register web routes
     register_routes(app)
+    
+    # Register API blueprint (for service-to-service calls)
+    from apps.web.api import api_bp
+    logger.info(f"Registering API blueprint: {api_bp.name} with URL prefix: {api_bp.url_prefix}")
+    app.register_blueprint(api_bp)
+    logger.info(f"API blueprint registered successfully. Blueprints: {list(app.blueprints.keys())}")
+    
+    # Exempt API blueprint from CSRF protection (for service-to-service calls)
+    # This must be done after csrf.init_app() is called (which happens in init_extensions)
+    from apps.web.extensions import csrf
+    csrf.exempt(api_bp)
+    logger.info("API blueprint exempted from CSRF protection")
 
 
 def register_error_handlers(app):

@@ -65,16 +65,25 @@ class IssueTrackerConsumer:
                 from alphafusion.storage.queue_factory import create_queue_consumer
                 self.consumer = create_queue_consumer()
             
-            if not self.consumer or not self.consumer.is_connected():
+            if not self.consumer:
                 logger.warning("Kafka consumer not available - issue tracking will not work")
-                self.consumer = None
                 return
             
-            # Subscribe to issues topic
-            if self.consumer.subscribe([ISSUES_TOPIC], group_id="issuetracker-consumer"):
-                logger.info(f"Subscribed to Kafka topic: {ISSUES_TOPIC}")
-            else:
-                logger.error("Failed to subscribe to issues topic")
+            # Kafka consumers are lazy - they only connect when subscribe() is called
+            # Try to subscribe - this will trigger the connection
+            try:
+                if self.consumer.subscribe([ISSUES_TOPIC], group_id="issuetracker-consumer"):
+                    logger.info(f"Subscribed to Kafka topic: {ISSUES_TOPIC}")
+                    # Verify connection after subscription (consumers connect on subscribe)
+                    if self.consumer.is_connected():
+                        logger.info("Kafka consumer connected successfully")
+                    else:
+                        logger.warning("Kafka consumer subscribed but connection not verified - may connect later")
+                else:
+                    logger.error("Failed to subscribe to issues topic")
+                    self.consumer = None
+            except Exception as e:
+                logger.warning(f"Failed to subscribe to Kafka topic (Kafka may be unavailable): {e}")
                 self.consumer = None
         
         except Exception as e:
