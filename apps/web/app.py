@@ -164,6 +164,10 @@ def init_extensions(app):
     
     # Rate Limiting
     limiter.init_app(app)
+    
+    # OAuth (Google)
+    from apps.web.oauth import init_oauth
+    init_oauth(app)
 
 
 def init_providers(app, cache_client=None):

@@ -106,7 +106,11 @@ class FirebaseHelper:
             if "role" in kwargs:
                 update_data["role"] = kwargs["role"].value if isinstance(kwargs["role"], UserRole) else kwargs["role"]
             if "last_login" in kwargs:
-                update_data["lastLogin"] = kwargs["last_login"]
+                # If last_login is None, set it to current datetime; otherwise use the provided value
+                if kwargs["last_login"] is None:
+                    update_data["lastLogin"] = datetime.now()
+                else:
+                    update_data["lastLogin"] = kwargs["last_login"]
             
             user_ref.update(update_data)
             return True

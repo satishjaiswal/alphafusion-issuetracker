@@ -12,11 +12,13 @@
             <div class="card-body">
                 <form method="POST" action="{{ url_for('login') }}">
                     <div class="mb-3">
-                        <label for="user_id" class="form-label">User ID</label>
-                        <input type="text" class="form-control" id="user_id" name="user_id" required>
-                        <small class="form-text text-muted">Enter your user ID to login. A new user will be created if it doesn't exist.</small>
+                        <label for="user_id" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="user_id" name="user_id" placeholder="your@quantory.app" required>
+                        <small class="form-text text-muted">
+                            Only <strong>@quantory.app</strong> email addresses are allowed. You will be redirected to Google for authentication.
+                        </small>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">Login</button>
+                    <button type="submit" class="btn btn-primary w-100">Login with Google</button>
                 </form>
             </div>
         </div>

@@ -17,7 +17,9 @@ RUN pip install --no-cache-dir \
     Flask-WTF>=1.2.0 \
     Flask-Talisman>=1.1.0 \
     Flask-Limiter>=3.5.0 \
-    marshmallow>=3.20.0
+    marshmallow>=3.20.0 \
+    authlib>=1.2.0 \
+    requests>=2.31.0
 
 # Set Python path
 ENV PYTHONPATH=/app/alphafusion-issuetracker

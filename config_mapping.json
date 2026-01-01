@@ -3,6 +3,8 @@
   "default_sensitive": false,
   "sensitive_keys": [
     "app/issuetracker/secret_key",
+    "app/issuetracker/google_client_id",
+    "app/issuetracker/google_client_secret",
     "integrations/firebase/credentials_path",
     "integrations/firebase/credentials"
   ],

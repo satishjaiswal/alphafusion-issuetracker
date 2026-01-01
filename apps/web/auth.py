@@ -7,6 +7,7 @@ import logging
 from functools import wraps
 from flask import session, redirect, url_for, request, jsonify, current_app
 from apps.web.models import UserRole
+from apps.web.oauth import is_quantory_email
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +36,24 @@ def get_current_user():
 
 
 def require_auth(f):
-    """Decorator to require authentication"""
+    """Decorator to require authentication - only @quantory.app users allowed"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not get_current_user_id():
+        user_id = get_current_user_id()
+        if not user_id:
             if request.is_json or request.path.startswith("/api/"):
                 return jsonify({"error": "Authentication required"}), 401
             return redirect(url_for("login"))
+        
+        # Verify user is from @quantory.app domain
+        if not is_quantory_email(user_id):
+            logger.warning(f"Access denied for non-quantory.app user: {user_id}")
+            if request.is_json or request.path.startswith("/api/"):
+                return jsonify({"error": "Access denied. Only @quantory.app users are allowed."}), 403
+            flash("Access denied. Only @quantory.app users are allowed.", "error")
+            logout_user()
+            return redirect(url_for("login"))
+        
         return f(*args, **kwargs)
     return decorated_function
 

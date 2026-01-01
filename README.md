@@ -5,10 +5,11 @@ Issue tracking application for the AlphaFusion trading platform. Tracks bugs, fe
 ## Overview
 
 The Issue Tracker provides:
-- **Web UI**: Manual issue creation and management
-- **REST API**: Programmatic issue logging for services
+- **Web UI**: Manual issue creation and management (restricted to @quantory.app users via Google OAuth)
+- **REST API**: Programmatic issue logging for services (no authentication required)
 - **Firebase Integration**: Stores data in Firestore
 - **Role-Based Access**: Admin, developer, tester, and viewer roles
+- **Authentication**: Google OAuth for @quantory.app users only
 
 ## Architecture
 
@@ -45,9 +46,30 @@ Firestore collections:
    }
    ```
 
-2. **Service Configuration**: Service config is in `alphafusion-config/services/issuetracker.json`
+2. **Google OAuth Credentials** (for @quantory.app users):
+   - **You need OAuth Client ID and Client Secret** (not an API key)
+   - **Recommended**: Create `.credentials/app/issuetracker/google-issuetracker.json`:
+     ```json
+     {
+         "GOOGLE_CLIENT_ID": "your-client-id",
+         "GOOGLE_CLIENT_SECRET": "your-client-secret"
+     }
+     ```
+   - **Alternative 1**: Set environment variables `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
+   - **Alternative 2**: Configure via SecureConfigLoader at `app/issuetracker/google_client_id` and `app/issuetracker/google_client_secret`
+   - **Quick Setup**:
+     1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+     2. Create/select a project
+     3. Enable "Google+ API" or "Google Identity API"
+     4. Go to "APIs & Services" → "Credentials" → "Create Credentials" → "OAuth client ID"
+     5. Application type: "Web application"
+     6. Authorized redirect URIs: `http://localhost:6002/oauth/callback` (dev) and your production URL
+     7. Copy Client ID and Client Secret
+   - **Detailed Setup Guide**: See [docs/GOOGLE_OAUTH_SETUP.md](docs/GOOGLE_OAUTH_SETUP.md)
 
-3. **SecureConfigLoader**: Config mapping is in `config_mapping.json`
+3. **Service Configuration**: Service config is in `alphafusion-config/services/issuetracker.json`
+
+4. **SecureConfigLoader**: Config mapping is in `config_mapping.json`
 
 ### Running with Docker Compose
 
