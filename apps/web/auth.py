@@ -5,6 +5,7 @@ Authentication and authorization for Issue Tracker
 
 import logging
 from functools import wraps
+from typing import Optional
 from flask import session, redirect, url_for, request, jsonify, current_app
 from apps.web.models import UserRole
 from apps.web.oauth import is_quantory_email
@@ -80,9 +81,11 @@ def require_role(*roles):
     return decorator
 
 
-def login_user(user_id: str):
+def login_user(user_id: str, display_name: Optional[str] = None):
     """Log in a user"""
     session["user_id"] = user_id
+    if display_name:
+        session["user_display_name"] = display_name
     # Update last login
     firebase_provider = _get_firebase_provider()
     if firebase_provider:

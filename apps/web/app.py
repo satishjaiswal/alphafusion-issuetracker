@@ -47,12 +47,6 @@ def create_app(queue_consumer=None, cache_client=None, firebase_provider=None, r
     Returns:
         Configured Flask application
     """
-    # Ensure default admin user exists
-    try:
-        ensure_default_admin()
-    except Exception as e:
-        logger.debug(f"Default admin creation skipped: {e}")
-    
     # Get application directory for templates and static files
     app_dir = Path(__file__).parent
     templates_dir = app_dir / 'templates'
@@ -84,6 +78,14 @@ def create_app(queue_consumer=None, cache_client=None, firebase_provider=None, r
         app.firebase_helper_provider = firebase_provider
         app.redis_helper_provider = redis_provider
         logger.info("Using provided Firebase and Redis providers")
+    
+    # 3.5. Ensure default admin user exists (after providers are initialized)
+    # This must happen after providers are ready so FirebaseClient can initialize properly
+    with app.app_context():
+        try:
+            ensure_default_admin()
+        except Exception as e:
+            logger.debug(f"Default admin creation skipped: {e}")
     
     # 4. Register Blueprints
     register_blueprints(app)

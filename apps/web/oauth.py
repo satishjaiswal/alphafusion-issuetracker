@@ -131,8 +131,8 @@ def handle_google_callback() -> Optional[str]:
         # Get token from Google
         token = google.authorize_access_token()
         
-        # Fetch user info from Google
-        resp = google.get('userinfo', token=token)
+        # Fetch user info from Google using the full URL
+        resp = google.get('https://www.googleapis.com/oauth2/v2/userinfo', token=token)
         if resp.status_code != 200:
             logger.error(f"Failed to fetch user info: {resp.status_code}")
             return None

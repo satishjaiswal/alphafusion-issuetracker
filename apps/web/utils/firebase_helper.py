@@ -37,16 +37,20 @@ class FirebaseHelper:
         """Initialize Firebase client"""
         try:
             if FirebaseClient:
+                logger.debug("Creating FirebaseClient instance...")
                 self._firebase_client = FirebaseClient()
                 self.db = self._firebase_client.get_client()
                 if self.db:
                     logger.info("Firebase helper initialized successfully")
                 else:
-                    logger.warning("Firebase client not available")
+                    logger.warning("Firebase client not available - FirebaseClient.get_client() returned None")
+                    # Log more details about why it failed
+                    if self._firebase_client:
+                        logger.debug(f"FirebaseClient.db is None. Check FirebaseClient initialization logs.")
             else:
                 logger.warning("FirebaseClient not available")
         except Exception as e:
-            logger.error(f"Failed to initialize Firebase helper: {e}")
+            logger.error(f"Failed to initialize Firebase helper: {e}", exc_info=True)
             self.db = None
     
     def is_available(self) -> bool:

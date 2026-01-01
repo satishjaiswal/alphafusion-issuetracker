@@ -5,16 +5,21 @@
     "app/issuetracker/secret_key",
     "app/issuetracker/google_client_id",
     "app/issuetracker/google_client_secret",
+    "app/issuetracker/google_*",
     "integrations/firebase/credentials_path",
-    "integrations/firebase/credentials"
+    "integrations/firebase/credentials",
+    "integrations/firebase/*",
+    "integrations/google/*",
+    "app/*/google_client_id",
+    "app/*/google_client_secret",
+    "app/*/google_*"
   ],
   "non_sensitive_keys": [
     "services/issuetracker/url",
     "services/issuetracker/port",
     "services/issuetracker/host",
     "app/issuetracker/flask_debug",
-    "app/issuetracker/flask_port",
-    "integrations/firebase/project_id"
+    "app/issuetracker/flask_port"
   ],
   "required_keys": []
 }

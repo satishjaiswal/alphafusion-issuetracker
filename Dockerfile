@@ -7,9 +7,8 @@ WORKDIR /app
 COPY alphafusion-issuetracker /app/alphafusion-issuetracker
 
 # Create credentials directory structure
-# Note: Credentials are provided via volume mount from docker-compose.yml
-# The .credentials directory is mounted at runtime, so no need to copy during build
-RUN mkdir -p /app/.credentials/integrations
+# Credentials will be copied from mounted volume to container filesystem at startup
+RUN mkdir -p /app/.credentials/integrations /app/alphafusion-issuetracker/scripts
 
 # Install Flask and web dependencies
 RUN pip install --no-cache-dir \
@@ -38,6 +37,11 @@ RUN mkdir -p /app/.credentials /app/logs && \
     groupadd -r appuser && useradd -r -g appuser -u 1000 appuser && \
     chown -R appuser:appuser /app
 
+# Copy entrypoint script
+COPY alphafusion-issuetracker/scripts/entrypoint.sh /app/entrypoint.sh
+COPY alphafusion-issuetracker/scripts/copy_credentials.py /app/alphafusion-issuetracker/scripts/copy_credentials.py
+RUN chmod +x /app/entrypoint.sh /app/alphafusion-issuetracker/scripts/copy_credentials.py
+
 # Expose Flask port
 EXPOSE 6001
 
@@ -50,5 +54,6 @@ USER appuser
 
 # Run the Flask app
 WORKDIR /app/alphafusion-issuetracker
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["python", "-m", "apps.web.app"]
 

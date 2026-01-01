@@ -385,18 +385,22 @@ def register_routes(app):
                 return redirect(url_for("login"))
             
             # Get or create user in Firebase
+            # NOTE: We create user accounts automatically on first login - this is expected behavior
             firebase_provider = _get_firebase_provider()
-            if not firebase_provider:
-                flash("Firebase provider not available", "error")
+            if not firebase_provider or not firebase_provider.is_available():
+                logger.error("Firebase provider not available - cannot create/login user")
+                flash("Firebase database not available. Please contact administrator.", "error")
                 return redirect(url_for("login"))
             
-            # Check if user exists
+            # Check if user exists in Firebase
             user = firebase_provider.get_user(email)
             if not user:
-                # Create user with developer role (quantory.app users are internal)
+                # Auto-create user account for first-time login (normal behavior)
+                # This happens automatically when a new @quantory.app user logs in for the first time
                 display_name = session.get('oauth_name', email.split('@')[0])
                 photo_url = session.get('oauth_picture')
                 
+                logger.info(f"First-time login detected - creating user account for {email}")
                 user = firebase_provider.create_user(
                     uid=email,
                     email=email,
@@ -404,24 +408,28 @@ def register_routes(app):
                     photo_url=photo_url,
                     role=UserRole.DEVELOPER  # Internal quantory.app users get developer role
                 )
+                
+                if not user:
+                    logger.error(f"Failed to create user account for {email} - Firebase may not be configured correctly")
+                    flash("Failed to create user account. Firebase may not be configured. Please contact administrator.", "error")
+                    return redirect(url_for("login"))
             
-            if user:
-                # Update user info if available
-                if session.get('oauth_name'):
-                    firebase_provider.update_user(email, display_name=session.get('oauth_name'))
-                if session.get('oauth_picture'):
-                    firebase_provider.update_user(email, photo_url=session.get('oauth_picture'))
-                
-                # Log in user
-                login_user(email)
-                
-                # Get redirect URL from session
-                redirect_url = session.pop('oauth_redirect', url_for('dashboard'))
-                flash("Logged in successfully", "success")
-                return redirect(redirect_url)
-            else:
-                flash("Failed to create user account", "error")
-                return redirect(url_for("login"))
+            # Get display name from OAuth session or user object
+            display_name = session.get('oauth_name') or user.display_name or email.split('@')[0]
+            
+            # Update user info if available (for existing users or to refresh OAuth data)
+            if session.get('oauth_name'):
+                firebase_provider.update_user(email, display_name=session.get('oauth_name'))
+            if session.get('oauth_picture'):
+                firebase_provider.update_user(email, photo_url=session.get('oauth_picture'))
+            
+            # Log in user with display name
+            login_user(email, display_name=display_name)
+            
+            # Get redirect URL from session
+            redirect_url = session.pop('oauth_redirect', url_for('dashboard'))
+            flash("Logged in successfully", "success")
+            return redirect(redirect_url)
         
         except Exception as e:
             logger.error(f"Error in OAuth callback: {e}", exc_info=True)
