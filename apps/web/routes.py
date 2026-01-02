@@ -26,11 +26,6 @@ def _get_firebase_provider():
     return getattr(current_app, 'firebase_helper_provider', None)
 
 
-def _get_redis_provider():
-    """Get Redis provider from Flask app context"""
-    return getattr(current_app, 'redis_helper_provider', None)
-
-
 def register_routes(app):
     """Register all web UI routes"""
     
@@ -97,19 +92,20 @@ def register_routes(app):
     
     @app.route("/issues/recent")
     def issues_recent():
-        """List recent issues from Redis (last 1 hour)"""
+        """List recent issues from Firebase"""
         try:
-            redis_provider = _get_redis_provider()
             firebase_provider = _get_firebase_provider()
             
-            if not redis_provider or not redis_provider.is_available():
-                flash("Redis provider not available", "error")
+            if not firebase_provider:
+                flash("Firebase provider not available", "error")
                 return render_template("issues.html", issues=[], users={}, filters={}, source="recent", grouped_issues=[])
             
             limit = int(request.args.get("limit", 100))
             
-            # Get recent issues from Redis
-            issues = redis_provider.list_recent_issues(limit=limit)
+            # Get recent issues from Firebase (sorted by created_at, most recent first)
+            all_issues = firebase_provider.list_issues(limit=limit * 2)  # Get more to filter by time
+            # Sort by created_at descending and take the most recent
+            issues = sorted(all_issues, key=lambda x: x.created_at or datetime.min, reverse=True)[:limit]
             
             # Group duplicates by title (case-insensitive, normalized)
             grouped_issues = {}
@@ -269,7 +265,7 @@ def register_routes(app):
     @app.route("/issues/create", methods=["GET", "POST"])
     @require_auth
     def create_issue():
-        """Create new issue (publishes to Kafka/Redis only - background consumer writes to Firebase)"""
+        """Create new issue (publishes to Kafka - background consumer writes to Firebase)"""
         if request.method == "GET":
             return render_template("create_issue.html")
         
@@ -296,7 +292,7 @@ def register_routes(app):
             # Validate request
             data = validate_json_body(IssueCreateSchema, form_data)
             
-            # Publish to Kafka/Redis (single data flow - no direct Firebase write)
+            # Publish to Kafka (single data flow - no direct Firebase write)
             try:
                 from alphafusion.utils.issue_publisher import get_issue_publisher
                 publisher = get_issue_publisher()
@@ -305,7 +301,7 @@ def register_routes(app):
                     flash("Issue publishing service unavailable. Please try again later.", "error")
                     return render_template("create_issue.html")
                 
-                # Publish issue to Kafka/Redis
+                # Publish issue to Kafka
                 success = publisher.publish_issue(
                     title=data["title"],
                     description=data["description"],
@@ -319,7 +315,7 @@ def register_routes(app):
                 
                 if success:
                     flash("Issue created successfully. It will appear in the system shortly.", "success")
-                    # Redirect to recent issues (will show from Redis)
+                    # Redirect to recent issues (will show from Firebase)
                     return redirect(url_for("issues_recent"))
                 else:
                     flash("Failed to publish issue. Please try again.", "error")
@@ -342,7 +338,6 @@ def register_routes(app):
         """Update issue"""
         try:
             firebase_provider = _get_firebase_provider()
-            redis_provider = _get_redis_provider()
             
             if not firebase_provider:
                 flash("Firebase provider not available", "error")
@@ -383,12 +378,6 @@ def register_routes(app):
             user_id = get_current_user_id()
             success = firebase_provider.update_issue(issue_id, changes, user_id)
             
-            # Update in Redis if available
-            if success and redis_provider and redis_provider.is_available():
-                updated_issue = firebase_provider.get_issue(issue_id)
-                if updated_issue:
-                    redis_provider.update_issue(updated_issue)
-            
             if success:
                 flash("Issue updated successfully", "success")
             else:
@@ -409,7 +398,6 @@ def register_routes(app):
         """Add comment to issue"""
         try:
             firebase_provider = _get_firebase_provider()
-            redis_provider = _get_redis_provider()
             
             if not firebase_provider:
                 flash("Firebase provider not available", "error")
@@ -433,12 +421,6 @@ def register_routes(app):
             )
             
             comment_id = firebase_provider.create_comment(issue_id, comment)
-            
-            # Update issue in Redis if available (to refresh TTL)
-            if comment_id and redis_provider and redis_provider.is_available():
-                updated_issue = firebase_provider.get_issue(issue_id)
-                if updated_issue:
-                    redis_provider.update_issue(updated_issue)
             
             if comment_id:
                 flash("Comment added successfully", "success")

@@ -2,24 +2,21 @@
 """
 Provider Implementations for Issue Tracker
 
-Concrete implementations of provider protocols wrapping FirebaseHelper and RedisHelper.
+Concrete implementations of provider protocols wrapping FirebaseHelper.
 """
 
 import logging
 from typing import Optional, List, Dict, Any
 
 from apps.web.utils.providers import (
-    FirebaseHelperProvider,
-    RedisHelperProvider
+    FirebaseHelperProvider
 )
 from apps.web.utils.firebase_helper import FirebaseHelper
-from apps.web.utils.redis_helper import RedisHelper
 from apps.web.models import (
     User, Issue, Comment, Activity, Notification, Backlog,
     UserRole, IssueStatus, IssuePriority, IssueType, BacklogCategory,
     ActivityType, NotificationType
 )
-from alphafusion.storage.cache_interface import CacheClient
 
 logger = logging.getLogger(__name__)
 
@@ -146,51 +143,4 @@ class FirebaseHelperProviderImpl:
     def delete_backlog(self, backlog_id: str) -> bool:
         """Delete backlog item"""
         return self._firebase_helper.delete_backlog(backlog_id)
-
-
-class RedisHelperProviderImpl:
-    """
-    Implementation of RedisHelperProvider.
-    
-    Wraps RedisHelper to provide dependency injection.
-    """
-    
-    def __init__(self, redis_helper: Optional[RedisHelper] = None):
-        """
-        Initialize Redis helper provider.
-        
-        Args:
-            redis_helper: Optional RedisHelper instance.
-                        If None, creates new instance.
-        """
-        if redis_helper is not None:
-            if not isinstance(redis_helper, RedisHelper):
-                raise TypeError("redis_helper must be an instance of RedisHelper")
-            self._redis_helper = redis_helper
-        else:
-            self._redis_helper = RedisHelper()
-    
-    def is_available(self) -> bool:
-        """Check if Redis is available"""
-        return self._redis_helper.is_available()
-    
-    def store_issue(self, issue: Issue) -> bool:
-        """Store issue in Redis with TTL (1 hour)"""
-        return self._redis_helper.store_issue(issue)
-    
-    def get_issue(self, issue_id: str) -> Optional[Issue]:
-        """Get issue from Redis"""
-        return self._redis_helper.get_issue(issue_id)
-    
-    def list_recent_issues(self, limit: int = 100) -> List[Issue]:
-        """List recent issues from Redis"""
-        return self._redis_helper.list_recent_issues(limit=limit)
-    
-    def update_issue(self, issue: Issue) -> bool:
-        """Update issue in Redis"""
-        return self._redis_helper.update_issue(issue)
-    
-    def delete_issue(self, issue_id: str) -> bool:
-        """Delete issue from Redis"""
-        return self._redis_helper.delete_issue(issue_id)
 

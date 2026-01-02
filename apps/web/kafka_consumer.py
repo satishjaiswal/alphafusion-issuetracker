@@ -20,45 +20,34 @@ class IssueTrackerConsumer:
     
     Runs in a background thread and processes issues as they arrive.
     
-    Uses Provider Pattern for dependency injection of Firebase and Redis providers.
+    Uses Provider Pattern for dependency injection of Firebase provider.
     """
     
     def __init__(
         self,
         queue_consumer=None,
-        cache_client=None,
-        firebase_provider=None,
-        redis_provider=None
+        firebase_provider=None
     ):
         """
         Initialize Kafka consumer.
         
         Args:
             queue_consumer: Optional QueueConsumer instance. If None, creates default from factory.
-            cache_client: Optional CacheClient instance. If None, RedisHelper creates default.
             firebase_provider: Optional FirebaseHelperProvider instance. If None, creates default.
-            redis_provider: Optional RedisHelperProvider instance. If None, creates default.
         """
         self.consumer = queue_consumer
         self.firebase_provider = firebase_provider
-        self.redis_provider = redis_provider
         self.running = False
         self.thread: Optional[threading.Thread] = None
-        self._initialize(cache_client=cache_client)
+        self._initialize()
     
-    def _initialize(self, cache_client=None):
+    def _initialize(self):
         """Initialize consumer and providers"""
         try:
             # Initialize providers if not provided
             if self.firebase_provider is None:
                 from apps.web.utils.provider_factory import IssueTrackerProviderFactory
                 self.firebase_provider = IssueTrackerProviderFactory.create_firebase_helper_provider()
-            
-            if self.redis_provider is None:
-                from apps.web.utils.provider_factory import IssueTrackerProviderFactory
-                self.redis_provider = IssueTrackerProviderFactory.create_redis_helper_provider(
-                    cache_client=cache_client
-                )
             
             # Initialize Kafka consumer if not provided
             if self.consumer is None:
@@ -188,11 +177,6 @@ class IssueTrackerConsumer:
             
             if issue_id:
                 logger.info(f"Created issue {issue_id} from Kafka: {title[:50]}")
-                
-                # Store in Redis if available
-                if self.redis_provider and self.redis_provider.is_available():
-                    issue.id = issue_id
-                    self.redis_provider.store_issue(issue)
             else:
                 logger.error(f"Failed to create issue in Firebase: {title[:50]}")
         
@@ -211,26 +195,20 @@ def get_consumer() -> Optional[IssueTrackerConsumer]:
 
 def start_consumer(
     queue_consumer=None,
-    cache_client=None,
-    firebase_provider=None,
-    redis_provider=None
+    firebase_provider=None
 ):
     """
     Start the global consumer.
     
     Args:
         queue_consumer: Optional QueueConsumer instance. If None, creates default from factory.
-        cache_client: Optional CacheClient instance. If None, RedisHelper creates default.
         firebase_provider: Optional FirebaseHelperProvider instance. If None, creates default.
-        redis_provider: Optional RedisHelperProvider instance. If None, creates default.
     """
     global _consumer_instance
     if _consumer_instance is None:
         _consumer_instance = IssueTrackerConsumer(
             queue_consumer=queue_consumer,
-            cache_client=cache_client,
-            firebase_provider=firebase_provider,
-            redis_provider=redis_provider
+            firebase_provider=firebase_provider
         )
         _consumer_instance.start()
     return _consumer_instance

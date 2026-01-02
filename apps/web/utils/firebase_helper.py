@@ -151,7 +151,7 @@ class FirebaseHelper:
             issues_ref = self.db.collection("issues")
             doc_ref = issues_ref.add(issue.to_dict())
             issue_id = doc_ref[1].id
-            issue.id = issue_id  # Set the ID for Redis storage
+            issue.id = issue_id  # Set the ID for the issue
             
             # Create activity log
             self.create_activity(
@@ -159,9 +159,6 @@ class FirebaseHelper:
                 activity_type=ActivityType.CREATED,
                 user_id=issue.reporter_id
             )
-            
-            # Note: Redis storage is now handled by providers via dependency injection
-            # This keeps FirebaseHelper focused on Firebase operations only
             
             return issue_id
         except Exception as e:
@@ -240,9 +237,6 @@ class FirebaseHelper:
                     user_id=user_id,
                     changes=activity_changes
                 )
-            
-            # Note: Redis updates are now handled by providers via dependency injection
-            # This keeps FirebaseHelper focused on Firebase operations only
             
             return True
         except Exception as e:

@@ -24,12 +24,6 @@ def _get_firebase_provider():
     from flask import current_app
     return getattr(current_app, 'firebase_helper_provider', None)
 
-
-def _get_redis_provider():
-    """Get Redis provider from Flask app context"""
-    from flask import current_app
-    return getattr(current_app, 'redis_helper_provider', None)
-
 # Exempt entire API blueprint from CSRF protection
 # This must be done after csrf is initialized in app.py
 # We'll do it in app.py after blueprint registration
@@ -78,7 +72,7 @@ def create_issue():
                     "error": "Issue publishing service unavailable. Please try again later."
                 }), 503
             
-            # Publish issue to Kafka and Redis
+            # Publish issue to Kafka
             success = publisher.publish_issue(
                 title=data["title"],
                 description=data["description"],
@@ -169,9 +163,8 @@ def update_issue(issue_id: str):
         # Validate request body
         data = validate_json_body(IssueUpdateSchema, request.get_json() or {})
         
-        # Get providers from app context
+        # Get provider from app context
         firebase_provider = _get_firebase_provider()
-        redis_provider = _get_redis_provider()
         
         if not firebase_provider:
             return jsonify({"error": "Firebase provider not available"}), 503
@@ -207,12 +200,6 @@ def update_issue(issue_id: str):
         if not success:
             return jsonify({"error": "Failed to update issue"}), 500
         
-        # Update in Redis if available
-        if redis_provider and redis_provider.is_available():
-            updated_issue = firebase_provider.get_issue(issue_id)
-            if updated_issue:
-                redis_provider.update_issue(updated_issue)
-        
         # Get updated issue
         updated_issue = firebase_provider.get_issue(issue_id)
         if not updated_issue:
@@ -241,9 +228,8 @@ def create_comment(issue_id: str):
         # Validate request body
         data = validate_json_body(CommentCreateSchema, request.get_json() or {})
         
-        # Get providers from app context
+        # Get provider from app context
         firebase_provider = _get_firebase_provider()
-        redis_provider = _get_redis_provider()
         
         if not firebase_provider:
             return jsonify({"error": "Firebase provider not available"}), 503
@@ -267,12 +253,6 @@ def create_comment(issue_id: str):
         
         if not comment_id:
             return jsonify({"error": "Failed to create comment"}), 500
-        
-        # Update issue in Redis if it exists there (to refresh TTL)
-        if redis_provider and redis_provider.is_available():
-            updated_issue = firebase_provider.get_issue(issue_id)
-            if updated_issue:
-                redis_provider.update_issue(updated_issue)
         
         # Get created comment
         comments = firebase_provider.get_comments(issue_id)

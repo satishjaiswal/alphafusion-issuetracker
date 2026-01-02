@@ -102,35 +102,3 @@ class FirebaseHelperProvider(Protocol):
         """Mark notification as read"""
         ...
 
-
-class RedisHelperProvider(Protocol):
-    """
-    Protocol for Redis helper provider.
-    
-    Provides Redis cache operations for Issue Tracker with TTL support.
-    """
-    
-    def is_available(self) -> bool:
-        """Check if Redis is available"""
-        ...
-    
-    def store_issue(self, issue: Issue) -> bool:
-        """Store issue in Redis with TTL (1 hour)"""
-        ...
-    
-    def get_issue(self, issue_id: str) -> Optional[Issue]:
-        """Get issue from Redis"""
-        ...
-    
-    def list_recent_issues(self, limit: int = 100) -> List[Issue]:
-        """List recent issues from Redis"""
-        ...
-    
-    def update_issue(self, issue: Issue) -> bool:
-        """Update issue in Redis"""
-        ...
-    
-    def delete_issue(self, issue_id: str) -> bool:
-        """Delete issue from Redis"""
-        ...
-

@@ -34,15 +34,13 @@ from apps.web.app import create_app
 
 def create_dependencies():
     """
-    Create Queue, Cache, and Cloud provider dependencies.
+    Create Queue and Cloud provider dependencies.
     
     Returns:
-        tuple: (queue_consumer, cache_client, firebase_provider, redis_provider)
+        tuple: (queue_consumer, firebase_provider)
     """
     queue_consumer = None
-    cache_client = None
     firebase_provider = None
-    redis_provider = None
     
     # Create Queue Consumer (for Kafka)
     # Note: Kafka consumers are lazy - they only connect when subscribe() is called
@@ -56,36 +54,18 @@ def create_dependencies():
     except Exception as e:
         logger.warning(f"Failed to create queue consumer: {e}. Kafka consumer will not be available.")
     
-    # Create Cache Client (for Redis)
-    try:
-        from alphafusion.storage.cache_factory import get_default_cache_client
-        cache_client = get_default_cache_client(use_pool=True)
-        if cache_client and cache_client.is_connected():
-            logger.info("Cache client (Redis) created and connected")
-        else:
-            logger.warning("Cache client created but not connected - Redis may be unavailable")
-    except Exception as e:
-        logger.warning(f"Failed to create cache client: {e}. Redis cache will not be available.")
-    
-    # Create Cloud providers (Firebase and Redis helper providers)
+    # Create Firebase provider
     try:
         from apps.web.utils.provider_factory import IssueTrackerProviderFactory
-        firebase_provider, redis_provider = IssueTrackerProviderFactory.create_providers(
-            cache_client=cache_client
-        )
+        firebase_provider = IssueTrackerProviderFactory.create_firebase_helper_provider()
         if firebase_provider and firebase_provider.is_available():
             logger.info("Firebase provider created and available")
         else:
             logger.warning("Firebase provider created but not available - check credentials")
-        
-        if redis_provider and redis_provider.is_available():
-            logger.info("Redis provider created and available")
-        else:
-            logger.warning("Redis provider created but not available")
     except Exception as e:
-        logger.warning(f"Failed to create cloud providers: {e}")
+        logger.warning(f"Failed to create Firebase provider: {e}")
     
-    return queue_consumer, cache_client, firebase_provider, redis_provider
+    return queue_consumer, firebase_provider
 
 
 def main():
@@ -94,7 +74,7 @@ def main():
     
     # Initialize degraded mode manager if available
     if DEGRADED_MODE_AVAILABLE:
-        required_dependencies = ["redis", "cassandra"]  # Kafka is optional for issuetracker
+        required_dependencies = ["cassandra"]  # Kafka is optional for issuetracker
         dependency_checker = DependencyChecker()
         degraded_mode_manager = DegradedModeManager(
             required_dependencies=required_dependencies,
@@ -115,14 +95,12 @@ def main():
         degraded_mode_manager.start_monitoring()
     
     # Create dependencies
-    queue_consumer, cache_client, firebase_provider, redis_provider = create_dependencies()
+    queue_consumer, firebase_provider = create_dependencies()
     
     # Create Flask app with injected dependencies
     app = create_app(
         queue_consumer=queue_consumer,
-        cache_client=cache_client,
-        firebase_provider=firebase_provider,
-        redis_provider=redis_provider
+        firebase_provider=firebase_provider
     )
     
     # Get port and debug settings

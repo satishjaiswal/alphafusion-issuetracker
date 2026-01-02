@@ -34,15 +34,13 @@ except ImportError as e:
     raise
 
 
-def create_app(queue_consumer=None, cache_client=None, firebase_provider=None, redis_provider=None):
+def create_app(queue_consumer=None, firebase_provider=None):
     """
     Create and configure Flask application.
     
     Args:
         queue_consumer: Optional QueueConsumer instance. If None, creates default from factory.
-        cache_client: Optional CacheClient instance. If None, creates default from factory.
         firebase_provider: Optional FirebaseHelperProvider instance. If None, creates default.
-        redis_provider: Optional RedisHelperProvider instance. If None, creates default.
     
     Returns:
         Configured Flask application
@@ -66,18 +64,14 @@ def create_app(queue_consumer=None, cache_client=None, firebase_provider=None, r
     
     # 3. Initialize Providers (Provider Pattern for DI)
     # Use provided providers or create defaults
-    if firebase_provider is None or redis_provider is None:
-        init_providers(app, cache_client=cache_client)
-        # Get providers from app context if they were created
-        if firebase_provider is None:
-            firebase_provider = getattr(app, 'firebase_helper_provider', None)
-        if redis_provider is None:
-            redis_provider = getattr(app, 'redis_helper_provider', None)
+    if firebase_provider is None:
+        init_providers(app)
+        # Get provider from app context if it was created
+        firebase_provider = getattr(app, 'firebase_helper_provider', None)
     else:
-        # Store provided providers in app context
+        # Store provided provider in app context
         app.firebase_helper_provider = firebase_provider
-        app.redis_helper_provider = redis_provider
-        logger.info("Using provided Firebase and Redis providers")
+        logger.info("Using provided Firebase provider")
     
     # 3.5. Ensure default admin user exists (after providers are initialized)
     # This must happen after providers are ready so FirebaseClient can initialize properly
@@ -98,9 +92,7 @@ def create_app(queue_consumer=None, cache_client=None, firebase_provider=None, r
         from apps.web.kafka_consumer import start_consumer
         start_consumer(
             queue_consumer=queue_consumer,
-            cache_client=cache_client,
-            firebase_provider=firebase_provider,
-            redis_provider=redis_provider
+            firebase_provider=firebase_provider
         )
         logger.info("Kafka consumer started for issue tracking")
     except Exception as e:
@@ -172,42 +164,32 @@ def init_extensions(app):
     init_oauth(app)
 
 
-def init_providers(app, cache_client=None):
+def init_providers(app):
     """
     Initialize providers and store in Flask app context.
     
     Args:
         app: Flask application instance
-        cache_client: Optional CacheClient instance for Redis provider
     """
     try:
         from apps.web.utils.provider_factory import IssueTrackerProviderFactory
         
-        # Create providers using factory
-        firebase_provider, redis_provider = IssueTrackerProviderFactory.create_providers(
-            cache_client=cache_client
-        )
+        # Create Firebase provider using factory
+        firebase_provider = IssueTrackerProviderFactory.create_firebase_helper_provider()
         
-        # Store providers in app context
+        # Store provider in app context
         app.firebase_helper_provider = firebase_provider
-        app.redis_helper_provider = redis_provider
         
-        logger.info("Issue Tracker providers initialized successfully")
+        logger.info("Issue Tracker provider initialized successfully")
         
         if not firebase_provider.is_available():
             logger.warning("Firebase provider not available - ensure Firebase credentials are configured")
-        
-        if not redis_provider.is_available():
-            logger.warning("Redis provider not available - recent issues cache will not work")
     
     except Exception as e:
-        logger.error(f"Failed to initialize providers: {e}", exc_info=True)
-        # Create fallback providers (will fail gracefully)
+        logger.error(f"Failed to initialize provider: {e}", exc_info=True)
+        # Create fallback provider (will fail gracefully)
         from apps.web.utils.provider_factory import IssueTrackerProviderFactory
         app.firebase_helper_provider = IssueTrackerProviderFactory.create_firebase_helper_provider()
-        app.redis_helper_provider = IssueTrackerProviderFactory.create_redis_helper_provider(
-            cache_client=cache_client
-        )
 
 
 def register_blueprints(app):
