@@ -20,6 +20,15 @@ except ImportError:
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
+# Try to import degraded mode support (optional)
+try:
+    from alphafusion.config.degraded_mode import DegradedModeManager, ServiceState
+    from alphafusion.config.dependency_checker import DependencyChecker
+    DEGRADED_MODE_AVAILABLE = True
+except ImportError:
+    DEGRADED_MODE_AVAILABLE = False
+    logger.warning("Degraded mode support not available - service will fail if dependencies unavailable")
+
 from apps.web.app import create_app
 
 
@@ -81,6 +90,30 @@ def create_dependencies():
 
 def main():
     """Main entry point - creates dependencies and starts Flask app"""
+    degraded_mode_manager = None
+    
+    # Initialize degraded mode manager if available
+    if DEGRADED_MODE_AVAILABLE:
+        required_dependencies = ["redis", "cassandra"]  # Kafka is optional for issuetracker
+        dependency_checker = DependencyChecker()
+        degraded_mode_manager = DegradedModeManager(
+            required_dependencies=required_dependencies,
+            dependency_checker=dependency_checker,
+            check_interval_seconds=30.0
+        )
+        
+        # Check dependencies (non-blocking - service can start in degraded mode)
+        logger.info("Checking dependencies...")
+        degraded_mode_manager.update_state_from_dependencies()
+        
+        if degraded_mode_manager.is_degraded():
+            logger.warning("⚠️  Some dependencies unavailable - starting in degraded mode")
+        else:
+            logger.info("✓ All dependencies healthy")
+        
+        # Start background monitoring
+        degraded_mode_manager.start_monitoring()
+    
     # Create dependencies
     queue_consumer, cache_client, firebase_provider, redis_provider = create_dependencies()
     
@@ -96,8 +129,16 @@ def main():
     port = app.config.get('FLASK_PORT', 6001)
     debug = app.config.get('FLASK_DEBUG', False)
     
-    logger.info(f"Starting Issue Tracker service on port {port} (debug={debug})")
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    if degraded_mode_manager and degraded_mode_manager.is_degraded():
+        logger.warning(f"Starting Issue Tracker service in degraded mode on port {port} (debug={debug})")
+    else:
+        logger.info(f"Starting Issue Tracker service on port {port} (debug={debug})")
+    
+    try:
+        app.run(host='0.0.0.0', port=port, debug=debug)
+    finally:
+        if degraded_mode_manager:
+            degraded_mode_manager.stop_monitoring()
 
 
 if __name__ == "__main__":
