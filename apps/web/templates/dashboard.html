@@ -2,6 +2,74 @@
 
 {% block title %}Issue Tracker Dashboard{% endblock %}
 
+{% block extra_head %}
+<style>
+/* Duplicate grouping styles */
+.btn-expand-toggle {
+    background: transparent;
+    border: none;
+    padding: 0.25rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm, 4px);
+}
+
+.btn-expand-toggle:hover {
+    background: var(--bg-hover);
+    color: var(--accent-primary);
+}
+
+.btn-expand-toggle .expand-icon {
+    transition: transform 0.2s ease;
+    width: 16px;
+    height: 16px;
+}
+
+.btn-expand-toggle.expanded .expand-icon {
+    transform: rotate(180deg);
+}
+
+.issue-row-primary.has-duplicates {
+    background: var(--bg-card) !important;
+}
+
+.issue-row-primary.has-duplicates:hover {
+    background: var(--bg-hover) !important;
+}
+
+.issue-row-duplicate {
+    background: var(--bg-panel) !important;
+    opacity: 0.9;
+}
+
+.issue-row-duplicate:hover {
+    background: var(--bg-hover) !important;
+    opacity: 1;
+}
+
+.issue-row-duplicate td:first-child {
+    padding-left: 2rem;
+    position: relative;
+}
+
+.issue-row-duplicate td:first-child::before {
+    content: '';
+    position: absolute;
+    left: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 2px;
+    height: 60%;
+    background: var(--border);
+    opacity: 0.5;
+}
+</style>
+{% endblock %}
+
 {% block page_title %}Issue Tracker Dashboard{% endblock %}
 {% block page_description %}Overview of all issues and their status{% endblock %}
 
@@ -46,11 +114,12 @@
         <h5 class="mb-0">Recent Issues</h5>
     </div>
     <div class="card-body">
-        {% if recent_issues %}
+        {% if grouped_issues %}
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead>
                     <tr>
+                        <th style="width: 40px;"></th>
                         <th>ID</th>
                         <th>Title</th>
                         <th>Status</th>
@@ -61,32 +130,79 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for issue in recent_issues %}
-                    <tr>
-                        <td><a href="{{ url_for('issue_detail', issue_id=issue.id) }}">{{ issue.id[:8] }}</a></td>
-                        <td><a href="{{ url_for('issue_detail', issue_id=issue.id) }}">{{ issue.title }}</a></td>
+                    {% for group in grouped_issues %}
+                    {% set group_index = loop.index0 %}
+                    {# Primary row - always visible #}
+                    <tr class="issue-row-primary {% if group.is_group %}has-duplicates{% endif %}" data-group-id="group-{{ group_index }}">
                         <td>
-                            <span class="badge badge-status-{{ issue.status.value.replace('_', '-') }}">
-                                {{ issue.status.value.replace('_', ' ').title() }}
+                            {% if group.is_group %}
+                            <button class="btn-expand-toggle" type="button" data-group-id="group-{{ group_index }}" aria-label="Toggle duplicates">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" class="expand-icon">
+                                    <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                                </svg>
+                            </button>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('issue_detail', issue_id=group.primary.id) }}">{{ group.primary.id[:8] }}</a>
+                            {% if group.is_group %}
+                            <span class="badge bg-secondary ms-2" title="{{ group.count }} duplicate issues">{{ group.count }}</span>
+                            {% endif %}
+                        </td>
+                        <td><a href="{{ url_for('issue_detail', issue_id=group.primary.id) }}">{{ group.primary.title }}</a></td>
+                        <td>
+                            <span class="badge badge-status-{{ group.primary.status.value.replace('_', '-') }}">
+                                {{ group.primary.status.value.replace('_', ' ').title() }}
                             </span>
                         </td>
                         <td>
-                            <span class="badge badge-priority-{{ issue.priority.value }}">
-                                {{ issue.priority.value.title() }}
+                            <span class="badge badge-priority-{{ group.primary.priority.value }}">
+                                {{ group.primary.priority.value.title() }}
                             </span>
                         </td>
                         <td>
-                            <span class="badge bg-secondary">{{ issue.type.value.title() }}</span>
+                            <span class="badge bg-secondary">{{ group.primary.type.value.title() }}</span>
                         </td>
-                        <td>{{ issue.reporter_id }}</td>
+                        <td>{{ group.primary.reporter_id }}</td>
                         <td>
-                            {% if issue.created_at %}
-                                {{ issue.created_at.strftime('%Y-%m-%d %H:%M') }}
+                            {% if group.primary.created_at %}
+                                {{ group.primary.created_at.strftime('%Y-%m-%d %H:%M') }}
                             {% else %}
                                 -
                             {% endif %}
                         </td>
                     </tr>
+                    {# Duplicate rows - hidden by default #}
+                    {% if group.is_group %}
+                    {% for duplicate in group.duplicates %}
+                    <tr class="issue-row-duplicate duplicate-row" data-group-id="group-{{ group_index }}" style="display: none;">
+                        <td></td>
+                        <td><a href="{{ url_for('issue_detail', issue_id=duplicate.id) }}">{{ duplicate.id[:8] }}</a></td>
+                        <td><a href="{{ url_for('issue_detail', issue_id=duplicate.id) }}">{{ duplicate.title }}</a></td>
+                        <td>
+                            <span class="badge badge-status-{{ duplicate.status.value.replace('_', '-') }}">
+                                {{ duplicate.status.value.replace('_', ' ').title() }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge badge-priority-{{ duplicate.priority.value }}">
+                                {{ duplicate.priority.value.title() }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">{{ duplicate.type.value.title() }}</span>
+                        </td>
+                        <td>{{ duplicate.reporter_id }}</td>
+                        <td>
+                            {% if duplicate.created_at %}
+                                {{ duplicate.created_at.strftime('%Y-%m-%d %H:%M') }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% endif %}
                     {% endfor %}
                 </tbody>
             </table>
@@ -101,4 +217,38 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle expand/collapse toggle for duplicate issues
+    const expandButtons = document.querySelectorAll('.btn-expand-toggle');
+    
+    expandButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const groupId = this.getAttribute('data-group-id');
+            const duplicateRows = document.querySelectorAll(`.duplicate-row[data-group-id="${groupId}"]`);
+            const icon = this.querySelector('.expand-icon');
+            const isExpanded = this.classList.contains('expanded');
+            
+            if (isExpanded) {
+                // Collapse
+                duplicateRows.forEach(row => {
+                    row.style.display = 'none';
+                });
+                this.classList.remove('expanded');
+                icon.style.transform = 'rotate(0deg)';
+            } else {
+                // Expand
+                duplicateRows.forEach(row => {
+                    row.style.display = '';
+                });
+                this.classList.add('expanded');
+                icon.style.transform = 'rotate(180deg)';
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

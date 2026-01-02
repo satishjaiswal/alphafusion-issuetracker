@@ -16,8 +16,8 @@ except ImportError:
     FirebaseClient = None
 
 from apps.web.models import (
-    User, Issue, Comment, Activity, Notification,
-    UserRole, IssueStatus, IssuePriority, IssueType,
+    User, Issue, Comment, Activity, Notification, Backlog,
+    UserRole, IssueStatus, IssuePriority, IssueType, BacklogCategory,
     ActivityType, NotificationType
 )
 
@@ -438,6 +438,124 @@ class FirebaseHelper:
             return False
     
     # Helper methods
+    # Backlog operations
+    def create_backlog(self, backlog: Backlog) -> Optional[str]:
+        """Create a new backlog item and return its ID"""
+        if not self.db:
+            return None
+        
+        try:
+            now = datetime.now()
+            backlog.created_at = now
+            backlog.updated_at = now
+            
+            backlog_ref = self.db.collection("backlog")
+            doc_ref = backlog_ref.add(backlog.to_dict())
+            backlog_id = doc_ref[1].id
+            backlog.id = backlog_id
+            
+            return backlog_id
+        except Exception as e:
+            logger.error(f"Failed to create backlog item: {e}")
+            return None
+    
+    def get_backlog(self, backlog_id: str) -> Optional[Backlog]:
+        """Get backlog item by ID"""
+        if not self.db:
+            return None
+        
+        try:
+            backlog_ref = self.db.collection("backlog").document(backlog_id)
+            backlog_doc = backlog_ref.get()
+            if backlog_doc.exists:
+                return Backlog.from_dict(backlog_id, backlog_doc.to_dict())
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get backlog item: {e}")
+            return None
+    
+    def update_backlog(self, backlog_id: str, changes: Dict[str, Any], user_id: str) -> bool:
+        """Update backlog item"""
+        if not self.db:
+            return False
+        
+        try:
+            backlog_ref = self.db.collection("backlog").document(backlog_id)
+            backlog_doc = backlog_ref.get()
+            
+            if not backlog_doc.exists:
+                return False
+            
+            current_data = backlog_doc.to_dict()
+            update_data = {}
+            
+            # Track changes
+            for key, new_value in changes.items():
+                old_value = current_data.get(key)
+                if old_value != new_value:
+                    # Convert enum to value if needed
+                    if isinstance(new_value, BacklogCategory):
+                        new_value = new_value.value
+                    if isinstance(old_value, BacklogCategory):
+                        old_value = old_value.value
+                    
+                    # Map to Firestore field names
+                    firestore_key = self._map_field_name(key)
+                    update_data[firestore_key] = new_value
+            
+            if not update_data:
+                return True  # No changes
+            
+            update_data["updatedAt"] = datetime.now()
+            
+            backlog_ref.update(update_data)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update backlog item: {e}")
+            return False
+    
+    def list_backlog(self, filters: Optional[Dict[str, Any]] = None, limit: int = 100) -> List[Backlog]:
+        """List backlog items with optional filters"""
+        if not self.db:
+            return []
+        
+        try:
+            backlog_ref = self.db.collection("backlog")
+            query = backlog_ref
+            
+            # Apply filters
+            if filters:
+                if "category" in filters:
+                    query = query.where("category", "==", filters["category"].value if isinstance(filters["category"], BacklogCategory) else filters["category"])
+                if "assignee_id" in filters:
+                    query = query.where("assigneeId", "==", filters["assignee_id"])
+                if "reporter_id" in filters:
+                    query = query.where("reporterId", "==", filters["reporter_id"])
+            
+            # Order by created_at descending
+            query = query.order_by("createdAt", direction=firestore.Query.DESCENDING)
+            
+            backlog_items = []
+            for doc in query.limit(limit).stream():
+                backlog_items.append(Backlog.from_dict(doc.id, doc.to_dict()))
+            return backlog_items
+        except Exception as e:
+            logger.error(f"Failed to list backlog items: {e}")
+            return []
+    
+    def delete_backlog(self, backlog_id: str) -> bool:
+        """Delete backlog item"""
+        if not self.db:
+            return False
+        
+        try:
+            backlog_ref = self.db.collection("backlog").document(backlog_id)
+            backlog_ref.delete()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete backlog item: {e}")
+            return False
+
     def _map_field_name(self, field_name: str) -> str:
         """Map Python field name to Firestore field name"""
         mapping = {
@@ -446,6 +564,7 @@ class FirebaseHelper:
             "created_at": "createdAt",
             "updated_at": "updatedAt",
             "resolved_at": "resolvedAt",
+            "completed_at": "completedAt",
             "author_id": "authorId",
             "user_id": "userId",
             "issue_id": "issueId",

@@ -7,11 +7,13 @@ import logging
 from datetime import datetime
 from flask import render_template, request, redirect, url_for, jsonify, flash, session, current_app
 from apps.web.models import (
-    Issue, Comment, IssueStatus, IssuePriority, IssueType, UserRole
+    Issue, Comment, IssueStatus, IssuePriority, IssueType, UserRole,
+    Backlog, BacklogCategory
 )
 from apps.web.schemas import (
     IssueCreateSchema, IssueUpdateSchema, CommentCreateSchema,
-    IssueQuerySchema, validate_json_body, validate_query_params
+    IssueQuerySchema, validate_json_body, validate_query_params,
+    BacklogCreateSchema, BacklogUpdateSchema, BacklogQuerySchema
 )
 from apps.web.auth import require_auth, get_current_user, get_current_user_id, login_user, logout_user
 from apps.web.oauth import start_google_oauth, handle_google_callback, is_quantory_email
@@ -39,7 +41,7 @@ def register_routes(app):
             firebase_provider = _get_firebase_provider()
             if not firebase_provider:
                 flash("Firebase provider not available", "error")
-                return render_template("dashboard.html", stats={}, recent_issues=[])
+                return render_template("dashboard.html", stats={}, recent_issues=[], grouped_issues=[])
             
             # Get statistics
             all_issues = firebase_provider.list_issues(limit=1000)
@@ -52,14 +54,46 @@ def register_routes(app):
                 "closed": len([i for i in all_issues if i.status == IssueStatus.CLOSED]),
             }
             
-            # Get recent issues
+            # Get recent issues and group duplicates by title
             recent_issues = sorted(all_issues, key=lambda x: x.created_at or datetime.min, reverse=True)[:10]
             
-            return render_template("dashboard.html", stats=stats, recent_issues=recent_issues)
+            # Group duplicates by title (case-insensitive, normalized)
+            grouped_issues = {}
+            for issue in recent_issues:
+                # Normalize title for grouping (lowercase, strip whitespace)
+                normalized_title = issue.title.lower().strip() if issue.title else ""
+                if normalized_title not in grouped_issues:
+                    grouped_issues[normalized_title] = []
+                grouped_issues[normalized_title].append(issue)
+            
+            # Create list of grouped issues: first issue in each group is the primary, rest are duplicates
+            grouped_list = []
+            for normalized_title, issues in grouped_issues.items():
+                if len(issues) > 1:
+                    # Group has duplicates - first one is primary, rest are duplicates
+                    grouped_list.append({
+                        'is_group': True,
+                        'primary': issues[0],
+                        'duplicates': issues[1:],
+                        'count': len(issues)
+                    })
+                else:
+                    # Single issue, not a duplicate
+                    grouped_list.append({
+                        'is_group': False,
+                        'primary': issues[0],
+                        'duplicates': [],
+                        'count': 1
+                    })
+            
+            # Sort by primary issue's created_at (most recent first)
+            grouped_list.sort(key=lambda x: x['primary'].created_at or datetime.min, reverse=True)
+            
+            return render_template("dashboard.html", stats=stats, recent_issues=recent_issues, grouped_issues=grouped_list)
         except Exception as e:
             logger.error(f"Error in dashboard: {e}", exc_info=True)
             flash("Error loading dashboard", "error")
-            return render_template("dashboard.html", stats={}, recent_issues=[])
+            return render_template("dashboard.html", stats={}, recent_issues=[], grouped_issues=[])
     
     @app.route("/issues/recent")
     def issues_recent():
@@ -70,12 +104,44 @@ def register_routes(app):
             
             if not redis_provider or not redis_provider.is_available():
                 flash("Redis provider not available", "error")
-                return render_template("issues.html", issues=[], users={}, filters={}, source="recent")
+                return render_template("issues.html", issues=[], users={}, filters={}, source="recent", grouped_issues=[])
             
             limit = int(request.args.get("limit", 100))
             
             # Get recent issues from Redis
             issues = redis_provider.list_recent_issues(limit=limit)
+            
+            # Group duplicates by title (case-insensitive, normalized)
+            grouped_issues = {}
+            for issue in issues:
+                # Normalize title for grouping (lowercase, strip whitespace)
+                normalized_title = issue.title.lower().strip() if issue.title else ""
+                if normalized_title not in grouped_issues:
+                    grouped_issues[normalized_title] = []
+                grouped_issues[normalized_title].append(issue)
+            
+            # Create list of grouped issues: first issue in each group is the primary, rest are duplicates
+            grouped_list = []
+            for normalized_title, issues_list in grouped_issues.items():
+                if len(issues_list) > 1:
+                    # Group has duplicates - first one is primary, rest are duplicates
+                    grouped_list.append({
+                        'is_group': True,
+                        'primary': issues_list[0],
+                        'duplicates': issues_list[1:],
+                        'count': len(issues_list)
+                    })
+                else:
+                    # Single issue, not a duplicate
+                    grouped_list.append({
+                        'is_group': False,
+                        'primary': issues_list[0],
+                        'duplicates': [],
+                        'count': 1
+                    })
+            
+            # Sort by primary issue's created_at (most recent first)
+            grouped_list.sort(key=lambda x: x['primary'].created_at or datetime.min, reverse=True)
             
             # Get users for display
             if firebase_provider:
@@ -84,11 +150,11 @@ def register_routes(app):
             else:
                 users_dict = {}
             
-            return render_template("issues.html", issues=issues, users=users_dict, filters=request.args, source="recent")
+            return render_template("issues.html", issues=issues, users=users_dict, filters=request.args, source="recent", grouped_issues=grouped_list)
         except Exception as e:
             logger.error(f"Error listing recent issues: {e}", exc_info=True)
             flash("Error loading recent issues", "error")
-            return render_template("issues.html", issues=[], users={}, filters={}, source="recent")
+            return render_template("issues.html", issues=[], users={}, filters={}, source="recent", grouped_issues=[])
     
     @app.route("/issues/all")
     def issues_all():
@@ -97,7 +163,7 @@ def register_routes(app):
             firebase_provider = _get_firebase_provider()
             if not firebase_provider:
                 flash("Firebase provider not available", "error")
-                return render_template("issues.html", issues=[], users={}, filters={}, source="all")
+                return render_template("issues.html", issues=[], users={}, filters={}, source="all", grouped_issues=[])
             
             # Get query parameters
             filters = {}
@@ -117,15 +183,47 @@ def register_routes(app):
             # Get issues from Firebase
             issues = firebase_provider.list_issues(filters=filters, limit=limit)
             
+            # Group duplicates by title (case-insensitive, normalized)
+            grouped_issues = {}
+            for issue in issues:
+                # Normalize title for grouping (lowercase, strip whitespace)
+                normalized_title = issue.title.lower().strip() if issue.title else ""
+                if normalized_title not in grouped_issues:
+                    grouped_issues[normalized_title] = []
+                grouped_issues[normalized_title].append(issue)
+            
+            # Create list of grouped issues: first issue in each group is the primary, rest are duplicates
+            grouped_list = []
+            for normalized_title, issues_list in grouped_issues.items():
+                if len(issues_list) > 1:
+                    # Group has duplicates - first one is primary, rest are duplicates
+                    grouped_list.append({
+                        'is_group': True,
+                        'primary': issues_list[0],
+                        'duplicates': issues_list[1:],
+                        'count': len(issues_list)
+                    })
+                else:
+                    # Single issue, not a duplicate
+                    grouped_list.append({
+                        'is_group': False,
+                        'primary': issues_list[0],
+                        'duplicates': [],
+                        'count': 1
+                    })
+            
+            # Sort by primary issue's created_at (most recent first)
+            grouped_list.sort(key=lambda x: x['primary'].created_at or datetime.min, reverse=True)
+            
             # Get users for display
             users = firebase_provider.list_users()
             users_dict = {user.uid: user for user in users}
             
-            return render_template("issues.html", issues=issues, users=users_dict, filters=request.args, source="all")
+            return render_template("issues.html", issues=issues, users=users_dict, filters=request.args, source="all", grouped_issues=grouped_list)
         except Exception as e:
             logger.error(f"Error listing all issues: {e}", exc_info=True)
             flash("Error loading issues", "error")
-            return render_template("issues.html", issues=[], users={}, filters={}, source="all")
+            return render_template("issues.html", issues=[], users={}, filters={}, source="all", grouped_issues=[])
     
     @app.route("/issues")
     def issues_list():
@@ -176,14 +274,27 @@ def register_routes(app):
             return render_template("create_issue.html")
         
         try:
-            # Validate request
-            data = validate_json_body(IssueCreateSchema, request.form.to_dict())
-            
-            # Get current user
+            # Get current user first
             user_id = get_current_user_id()
             if not user_id:
                 flash("Authentication required", "error")
                 return redirect(url_for("login"))
+            
+            # Prepare form data, excluding csrf_token and setting reporter_id
+            form_data = request.form.to_dict()
+            form_data.pop('csrf_token', None)  # Remove CSRF token from validation
+            form_data['reporter_id'] = user_id  # Set reporter_id from session
+            
+            # Parse tags from comma-separated string
+            if 'tags' in form_data and form_data['tags']:
+                tags_str = form_data['tags']
+                tags = [tag.strip() for tag in tags_str.split(',') if tag.strip()]
+                form_data['tags'] = tags
+            else:
+                form_data['tags'] = []
+            
+            # Validate request
+            data = validate_json_body(IssueCreateSchema, form_data)
             
             # Publish to Kafka/Redis (single data flow - no direct Firebase write)
             try:
@@ -200,7 +311,7 @@ def register_routes(app):
                     description=data["description"],
                     type=data.get("type", "task"),
                     priority=data.get("priority", "medium"),
-                    reporter_id=user_id,
+                    reporter_id=data["reporter_id"],
                     assignee_id=data.get("assignee_id"),
                     tags=data.get("tags", []),
                     component="web-ui"
@@ -342,6 +453,155 @@ def register_routes(app):
             logger.error(f"Error adding comment: {e}", exc_info=True)
             flash("Error adding comment", "error")
             return redirect(url_for("issue_detail", issue_id=issue_id))
+    
+    @app.route("/backlog")
+    def backlog_list():
+        """List all backlog items"""
+        try:
+            firebase_provider = _get_firebase_provider()
+            if not firebase_provider:
+                flash("Firebase provider not available", "error")
+                return render_template("backlog.html", backlog_items=[], users={}, filters={}, grouped_backlog=[])
+            
+            # Get query parameters
+            filters = {}
+            if request.args.get("category"):
+                filters["category"] = BacklogCategory(request.args.get("category"))
+            if request.args.get("assignee_id"):
+                filters["assignee_id"] = request.args.get("assignee_id")
+            if request.args.get("reporter_id"):
+                filters["reporter_id"] = request.args.get("reporter_id")
+            
+            limit = int(request.args.get("limit", 100))
+            
+            # Get backlog items from Firebase
+            backlog_items = firebase_provider.list_backlog(filters=filters, limit=limit)
+            
+            # Group duplicates by title (case-insensitive, normalized)
+            grouped_backlog = {}
+            for item in backlog_items:
+                normalized_title = item.title.lower().strip() if item.title else ""
+                if normalized_title not in grouped_backlog:
+                    grouped_backlog[normalized_title] = []
+                grouped_backlog[normalized_title].append(item)
+            
+            # Create list of grouped backlog items
+            grouped_list = []
+            for normalized_title, items_list in grouped_backlog.items():
+                if len(items_list) > 1:
+                    grouped_list.append({
+                        'is_group': True,
+                        'primary': items_list[0],
+                        'duplicates': items_list[1:],
+                        'count': len(items_list)
+                    })
+                else:
+                    grouped_list.append({
+                        'is_group': False,
+                        'primary': items_list[0],
+                        'duplicates': [],
+                        'count': 1
+                    })
+            
+            # Sort by primary item's created_at (most recent first)
+            grouped_list.sort(key=lambda x: x['primary'].created_at or datetime.min, reverse=True)
+            
+            # Get users for display
+            users = firebase_provider.list_users()
+            users_dict = {user.uid: user for user in users}
+            
+            return render_template("backlog.html", backlog_items=backlog_items, users=users_dict, filters=request.args, grouped_backlog=grouped_list)
+        except Exception as e:
+            logger.error(f"Error listing backlog: {e}", exc_info=True)
+            flash("Error loading backlog", "error")
+            return render_template("backlog.html", backlog_items=[], users={}, filters={}, grouped_backlog=[])
+    
+    @app.route("/backlog/create", methods=["GET", "POST"])
+    @require_auth
+    def create_backlog():
+        """Create new backlog item"""
+        if request.method == "GET":
+            return render_template("create_backlog.html")
+        
+        try:
+            # Get current user first
+            user_id = get_current_user_id()
+            if not user_id:
+                flash("Authentication required", "error")
+                return redirect(url_for("login"))
+            
+            # Prepare form data, excluding csrf_token and setting reporter_id
+            form_data = request.form.to_dict()
+            form_data.pop('csrf_token', None)  # Remove CSRF token from validation
+            form_data['reporter_id'] = user_id  # Set reporter_id from session
+            
+            # Parse tags from comma-separated string
+            if 'tags' in form_data and form_data['tags']:
+                tags_str = form_data['tags']
+                tags = [tag.strip() for tag in tags_str.split(',') if tag.strip()]
+                form_data['tags'] = tags
+            else:
+                form_data['tags'] = []
+            
+            # Validate request
+            data = validate_json_body(BacklogCreateSchema, form_data)
+            
+            # Create backlog item
+            firebase_provider = _get_firebase_provider()
+            if not firebase_provider or not firebase_provider.is_available():
+                flash("Firebase provider not available. Please ensure Firebase credentials are configured.", "error")
+                logger.warning("Firebase provider not available when creating backlog item")
+                return render_template("create_backlog.html")
+            
+            backlog = Backlog(
+                title=data["title"],
+                description=data["description"],
+                category=BacklogCategory(data.get("category", "feature-request")),
+                reporter_id=data["reporter_id"],
+                assignee_id=data.get("assignee_id"),
+                tags=data.get("tags", [])
+            )
+            
+            backlog_id = firebase_provider.create_backlog(backlog)
+            
+            if backlog_id:
+                flash("Backlog item created successfully", "success")
+                return redirect(url_for("backlog_list"))
+            else:
+                flash("Failed to create backlog item. Firebase may not be properly configured.", "error")
+                logger.error("Failed to create backlog item - create_backlog returned None")
+                return render_template("create_backlog.html")
+        except ValueError as e:
+            flash(f"Validation error: {str(e)}", "error")
+            return render_template("create_backlog.html")
+        except Exception as e:
+            logger.error(f"Error creating backlog item: {e}", exc_info=True)
+            flash("Error creating backlog item", "error")
+            return render_template("create_backlog.html")
+    
+    @app.route("/backlog/<backlog_id>")
+    def backlog_detail(backlog_id: str):
+        """Backlog item detail view"""
+        try:
+            firebase_provider = _get_firebase_provider()
+            if not firebase_provider:
+                flash("Firebase provider not available", "error")
+                return redirect(url_for("backlog_list"))
+            
+            backlog = firebase_provider.get_backlog(backlog_id)
+            if not backlog:
+                flash("Backlog item not found", "error")
+                return redirect(url_for("backlog_list"))
+            
+            # Get users for display
+            users = firebase_provider.list_users()
+            users_dict = {user.uid: user for user in users}
+            
+            return render_template("backlog_detail.html", backlog=backlog, users=users_dict)
+        except Exception as e:
+            logger.error(f"Error getting backlog detail: {e}", exc_info=True)
+            flash("Error loading backlog item", "error")
+            return redirect(url_for("backlog_list"))
     
     @app.route("/login", methods=["GET", "POST"])
     def login():

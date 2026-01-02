@@ -33,6 +33,15 @@ class IssueType(str, Enum):
     ENHANCEMENT = "enhancement"
 
 
+class BacklogCategory(str, Enum):
+    """Backlog category enumeration"""
+    FEATURE_REQUEST = "feature-request"
+    SUGGESTIONS = "suggestions"
+    IMPROVEMENT = "improvement"
+    MUST_HAVE = "must-have"
+    CRITICAL = "critical"
+
+
 class UserRole(str, Enum):
     """User role enumeration"""
     ADMIN = "admin"
@@ -283,6 +292,72 @@ class Issue:
             created_at=created_at,
             updated_at=updated_at,
             resolved_at=resolved_at
+        )
+
+
+@dataclass
+class Backlog:
+    """Backlog item model"""
+    id: Optional[str] = None
+    title: str = ""
+    description: str = ""
+    category: BacklogCategory = BacklogCategory.FEATURE_REQUEST
+    reporter_id: str = ""
+    assignee_id: Optional[str] = None
+    tags: List[str] = field(default_factory=list)
+    attachments: List[Attachment] = field(default_factory=list)
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for Firestore"""
+        result = {
+            "title": self.title,
+            "description": self.description,
+            "category": self.category.value,
+            "reporterId": self.reporter_id,
+            "tags": self.tags,
+            "attachments": [att.to_dict() for att in self.attachments],
+        }
+        if self.assignee_id:
+            result["assigneeId"] = self.assignee_id
+        if self.created_at:
+            result["createdAt"] = self.created_at
+        if self.updated_at:
+            result["updatedAt"] = self.updated_at
+        if self.completed_at:
+            result["completedAt"] = self.completed_at
+        return result
+
+    @classmethod
+    def from_dict(cls, backlog_id: str, data: Dict[str, Any]) -> "Backlog":
+        """Create from Firestore document"""
+        created_at = data.get("createdAt")
+        if isinstance(created_at, str):
+            created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        updated_at = data.get("updatedAt")
+        if isinstance(updated_at, str):
+            updated_at = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+        completed_at = data.get("completedAt")
+        if isinstance(completed_at, str):
+            completed_at = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+        attachments = [
+            Attachment.from_dict(att) if isinstance(att, dict) else att
+            for att in data.get("attachments", [])
+        ]
+        return cls(
+            id=backlog_id,
+            title=data.get("title", ""),
+            description=data.get("description", ""),
+            category=BacklogCategory(data.get("category", "feature-request")),
+            reporter_id=data.get("reporterId") or data.get("reporter_id", ""),
+            assignee_id=data.get("assigneeId") or data.get("assignee_id"),
+            tags=data.get("tags", []),
+            attachments=attachments,
+            created_at=created_at,
+            updated_at=updated_at,
+            completed_at=completed_at
         )
 
 

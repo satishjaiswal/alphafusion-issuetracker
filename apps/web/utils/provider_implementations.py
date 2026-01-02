@@ -15,8 +15,8 @@ from apps.web.utils.providers import (
 from apps.web.utils.firebase_helper import FirebaseHelper
 from apps.web.utils.redis_helper import RedisHelper
 from apps.web.models import (
-    User, Issue, Comment, Activity, Notification,
-    UserRole, IssueStatus, IssuePriority, IssueType,
+    User, Issue, Comment, Activity, Notification, Backlog,
+    UserRole, IssueStatus, IssuePriority, IssueType, BacklogCategory,
     ActivityType, NotificationType
 )
 from alphafusion.storage.cache_interface import CacheClient
@@ -126,6 +126,26 @@ class FirebaseHelperProviderImpl:
     def mark_notification_read(self, notification_id: str) -> bool:
         """Mark notification as read"""
         return self._firebase_helper.mark_notification_read(notification_id)
+    
+    def create_backlog(self, backlog: Backlog) -> Optional[str]:
+        """Create a new backlog item and return its ID"""
+        return self._firebase_helper.create_backlog(backlog)
+    
+    def get_backlog(self, backlog_id: str) -> Optional[Backlog]:
+        """Get backlog item by ID"""
+        return self._firebase_helper.get_backlog(backlog_id)
+    
+    def update_backlog(self, backlog_id: str, changes: Dict[str, Any], user_id: str) -> bool:
+        """Update backlog item"""
+        return self._firebase_helper.update_backlog(backlog_id, changes, user_id)
+    
+    def list_backlog(self, filters: Optional[Dict[str, Any]] = None, limit: int = 100) -> List[Backlog]:
+        """List backlog items with optional filters"""
+        return self._firebase_helper.list_backlog(filters=filters, limit=limit)
+    
+    def delete_backlog(self, backlog_id: str) -> bool:
+        """Delete backlog item"""
+        return self._firebase_helper.delete_backlog(backlog_id)
 
 
 class RedisHelperProviderImpl:

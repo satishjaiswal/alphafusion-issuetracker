@@ -182,6 +182,88 @@ class UserUpdateSchema(Schema):
     )
 
 
+class BacklogCreateSchema(Schema):
+    """Schema for creating a new backlog item"""
+    title = fields.Str(
+        required=True,
+        validate=validate.Length(min=1, max=200),
+        error_messages={"required": "Title is required", "invalid": "Title must be a string"}
+    )
+    description = fields.Str(
+        required=True,
+        validate=validate.Length(min=1, max=10000),
+        error_messages={"required": "Description is required", "invalid": "Description must be a string"}
+    )
+    category = fields.Str(
+        validate=validate.OneOf(["feature-request", "suggestions", "improvement", "must-have", "critical"]),
+        load_default="feature-request",
+        allow_none=False
+    )
+    reporter_id = fields.Str(
+        required=True,
+        validate=validate.Length(min=1, max=100),
+        error_messages={"required": "Reporter ID is required"}
+    )
+    assignee_id = fields.Str(
+        validate=validate.Length(min=1, max=100),
+        allow_none=True,
+        load_default=None
+    )
+    tags = fields.List(
+        fields.Str(validate=validate.Length(min=1, max=50)),
+        load_default=[],
+        allow_none=False
+    )
+
+
+class BacklogUpdateSchema(Schema):
+    """Schema for updating a backlog item"""
+    title = fields.Str(
+        validate=validate.Length(min=1, max=200),
+        allow_none=True
+    )
+    description = fields.Str(
+        validate=validate.Length(min=1, max=10000),
+        allow_none=True
+    )
+    category = fields.Str(
+        validate=validate.OneOf(["feature-request", "suggestions", "improvement", "must-have", "critical"]),
+        allow_none=True
+    )
+    assignee_id = fields.Str(
+        validate=validate.Length(min=1, max=100),
+        allow_none=True
+    )
+    tags = fields.List(
+        fields.Str(validate=validate.Length(min=1, max=50)),
+        allow_none=True
+    )
+
+
+class BacklogQuerySchema(Schema):
+    """Schema for querying backlog items"""
+    category = fields.Str(
+        validate=validate.OneOf(["feature-request", "suggestions", "improvement", "must-have", "critical"]),
+        allow_none=True,
+        load_default=None
+    )
+    assignee_id = fields.Str(
+        validate=validate.Length(min=1, max=100),
+        allow_none=True,
+        load_default=None
+    )
+    reporter_id = fields.Str(
+        validate=validate.Length(min=1, max=100),
+        allow_none=True,
+        load_default=None
+    )
+    limit = fields.Int(
+        validate=validate.Range(min=1, max=1000),
+        load_default=100,
+        allow_none=False
+    )
+
+
 def validate_query_params(schema_class, data):
     """Validate query parameters using a schema"""
     schema = schema_class()

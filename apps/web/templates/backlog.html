@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Issues{% endblock %}
+{% block title %}Backlog{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -67,6 +67,32 @@
     background: var(--border);
     opacity: 0.5;
 }
+
+/* Category badges */
+.badge-category-feature-request {
+    background-color: var(--accent-primary, #3b82f6) !important;
+    color: white !important;
+}
+
+.badge-category-suggestions {
+    background-color: var(--accent-positive, #22c55e) !important;
+    color: white !important;
+}
+
+.badge-category-improvement {
+    background-color: var(--accent-warning, #f59e0b) !important;
+    color: #000 !important;
+}
+
+.badge-category-must-have {
+    background-color: var(--accent-primary, #3b82f6) !important;
+    color: white !important;
+}
+
+.badge-category-critical {
+    background-color: var(--accent-negative, #ef4444) !important;
+    color: white !important;
+}
 </style>
 {% endblock %}
 
@@ -75,15 +101,11 @@
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
-                <h1>Issues</h1>
-                {% if source == 'recent' %}
-                <p class="text-muted mb-0">Recent issues (last 1 hour from Redis)</p>
-                {% else %}
-                <p class="text-muted mb-0">All issues (from Firebase)</p>
-                {% endif %}
+                <h1>Backlog</h1>
+                <p class="text-muted mb-0">Feature requests, suggestions, and improvements</p>
             </div>
-            <a href="{{ url_for('create_issue') }}" class="btn btn-primary">
-                <i class="bi bi-plus-circle"></i> Create Issue
+            <a href="{{ url_for('create_backlog') }}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Create Backlog Item
             </a>
         </div>
     </div>
@@ -96,36 +118,17 @@
                 <h5 class="mb-0">Filters</h5>
             </div>
             <div class="card-body">
-                <form method="GET" action="{{ url_for('issues_recent' if source == 'recent' else 'issues_all') }}">
+                <form method="GET" action="{{ url_for('backlog_list') }}">
                     <div class="row">
                         <div class="col-md-3">
-                            <label class="form-label">Status</label>
-                            <select name="status" class="form-select">
+                            <label class="form-label">Category</label>
+                            <select name="category" class="form-select">
                                 <option value="">All</option>
-                                <option value="open" {% if filters.get('status') == 'open' %}selected{% endif %}>Open</option>
-                                <option value="in-progress" {% if filters.get('status') == 'in-progress' %}selected{% endif %}>In Progress</option>
-                                <option value="resolved" {% if filters.get('status') == 'resolved' %}selected{% endif %}>Resolved</option>
-                                <option value="closed" {% if filters.get('status') == 'closed' %}selected{% endif %}>Closed</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Priority</label>
-                            <select name="priority" class="form-select">
-                                <option value="">All</option>
-                                <option value="low" {% if filters.get('priority') == 'low' %}selected{% endif %}>Low</option>
-                                <option value="medium" {% if filters.get('priority') == 'medium' %}selected{% endif %}>Medium</option>
-                                <option value="high" {% if filters.get('priority') == 'high' %}selected{% endif %}>High</option>
-                                <option value="critical" {% if filters.get('priority') == 'critical' %}selected{% endif %}>Critical</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Type</label>
-                            <select name="type" class="form-select">
-                                <option value="">All</option>
-                                <option value="bug" {% if filters.get('type') == 'bug' %}selected{% endif %}>Bug</option>
-                                <option value="feature" {% if filters.get('type') == 'feature' %}selected{% endif %}>Feature</option>
-                                <option value="task" {% if filters.get('type') == 'task' %}selected{% endif %}>Task</option>
-                                <option value="enhancement" {% if filters.get('type') == 'enhancement' %}selected{% endif %}>Enhancement</option>
+                                <option value="feature-request" {% if filters.get('category') == 'feature-request' %}selected{% endif %}>Feature Request</option>
+                                <option value="suggestions" {% if filters.get('category') == 'suggestions' %}selected{% endif %}>Suggestions</option>
+                                <option value="improvement" {% if filters.get('category') == 'improvement' %}selected{% endif %}>Improvement</option>
+                                <option value="must-have" {% if filters.get('category') == 'must-have' %}selected{% endif %}>Must Have</option>
+                                <option value="critical" {% if filters.get('category') == 'critical' %}selected{% endif %}>Critical</option>
                             </select>
                         </div>
                         <div class="col-md-3">
@@ -145,7 +148,7 @@
     <div class="col-12">
         <div class="card">
             <div class="card-body">
-                {% if grouped_issues %}
+                {% if grouped_backlog %}
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -153,16 +156,14 @@
                                 <th style="width: 40px;"></th>
                                 <th>ID</th>
                                 <th>Title</th>
-                                <th>Type</th>
-                                <th>Priority</th>
-                                <th>Status</th>
+                                <th>Category</th>
                                 <th>Reporter</th>
                                 <th>Assignee</th>
                                 <th>Created</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for group in grouped_issues %}
+                            {% for group in grouped_backlog %}
                             {% set group_index = loop.index0 %}
                             {# Primary row - always visible #}
                             <tr class="issue-row-primary {% if group.is_group %}has-duplicates{% endif %}" data-group-id="group-{{ group_index }}">
@@ -176,15 +177,17 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <a href="{{ url_for('issue_detail', issue_id=group.primary.id) }}">{{ group.primary.id[:8] }}</a>
+                                    <a href="{{ url_for('backlog_detail', backlog_id=group.primary.id) }}">{{ group.primary.id[:8] }}</a>
                                     {% if group.is_group %}
-                                    <span class="badge bg-secondary ms-2" title="{{ group.count }} duplicate issues">{{ group.count }}</span>
+                                    <span class="badge bg-secondary ms-2" title="{{ group.count }} duplicate items">{{ group.count }}</span>
                                     {% endif %}
                                 </td>
-                                <td><a href="{{ url_for('issue_detail', issue_id=group.primary.id) }}">{{ group.primary.title }}</a></td>
-                                <td><span class="badge bg-secondary">{{ group.primary.type.value }}</span></td>
-                                <td><span class="badge badge-priority-{{ group.primary.priority.value }}">{{ group.primary.priority.value }}</span></td>
-                                <td><span class="badge badge-status-{{ group.primary.status.value }}">{{ group.primary.status.value }}</span></td>
+                                <td><a href="{{ url_for('backlog_detail', backlog_id=group.primary.id) }}">{{ group.primary.title }}</a></td>
+                                <td>
+                                    <span class="badge badge-category-{{ group.primary.category.value }}">
+                                        {{ group.primary.category.value.replace('-', ' ').title() }}
+                                    </span>
+                                </td>
                                 <td>{{ users.get(group.primary.reporter_id, {}).display_name or group.primary.reporter_id if users.get(group.primary.reporter_id) else group.primary.reporter_id }}</td>
                                 <td>{{ users.get(group.primary.assignee_id, {}).display_name or group.primary.assignee_id if group.primary.assignee_id and users.get(group.primary.assignee_id) else (group.primary.assignee_id or '-') }}</td>
                                 <td>{{ group.primary.created_at.strftime('%Y-%m-%d %H:%M') if group.primary.created_at else '-' }}</td>
@@ -194,11 +197,13 @@
                             {% for duplicate in group.duplicates %}
                             <tr class="issue-row-duplicate duplicate-row" data-group-id="group-{{ group_index }}" style="display: none;">
                                 <td></td>
-                                <td><a href="{{ url_for('issue_detail', issue_id=duplicate.id) }}">{{ duplicate.id[:8] }}</a></td>
-                                <td><a href="{{ url_for('issue_detail', issue_id=duplicate.id) }}">{{ duplicate.title }}</a></td>
-                                <td><span class="badge bg-secondary">{{ duplicate.type.value }}</span></td>
-                                <td><span class="badge badge-priority-{{ duplicate.priority.value }}">{{ duplicate.priority.value }}</span></td>
-                                <td><span class="badge badge-status-{{ duplicate.status.value }}">{{ duplicate.status.value }}</span></td>
+                                <td><a href="{{ url_for('backlog_detail', backlog_id=duplicate.id) }}">{{ duplicate.id[:8] }}</a></td>
+                                <td><a href="{{ url_for('backlog_detail', backlog_id=duplicate.id) }}">{{ duplicate.title }}</a></td>
+                                <td>
+                                    <span class="badge badge-category-{{ duplicate.category.value }}">
+                                        {{ duplicate.category.value.replace('-', ' ').title() }}
+                                    </span>
+                                </td>
                                 <td>{{ users.get(duplicate.reporter_id, {}).display_name or duplicate.reporter_id if users.get(duplicate.reporter_id) else duplicate.reporter_id }}</td>
                                 <td>{{ users.get(duplicate.assignee_id, {}).display_name or duplicate.assignee_id if duplicate.assignee_id and users.get(duplicate.assignee_id) else (duplicate.assignee_id or '-') }}</td>
                                 <td>{{ duplicate.created_at.strftime('%Y-%m-%d %H:%M') if duplicate.created_at else '-' }}</td>
@@ -210,7 +215,12 @@
                     </table>
                 </div>
                 {% else %}
-                <p class="text-muted">No issues found.</p>
+                <div class="empty-state">
+                    <div class="empty-state-icon">📋</div>
+                    <div class="empty-state-title">No backlog items found</div>
+                    <div class="empty-state-description">Get started by creating your first backlog item.</div>
+                    <a href="{{ url_for('create_backlog') }}" class="btn btn-primary mt-3">Create Backlog Item</a>
+                </div>
                 {% endif %}
             </div>
         </div>
@@ -221,7 +231,7 @@
 {% block extra_scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Handle expand/collapse toggle for duplicate issues
+    // Handle expand/collapse toggle for duplicate backlog items
     const expandButtons = document.querySelectorAll('.btn-expand-toggle');
     
     expandButtons.forEach(button => {
