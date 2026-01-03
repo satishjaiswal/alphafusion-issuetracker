@@ -253,7 +253,7 @@ if self.redis_provider and self.redis_provider.is_available():
 
 ### Workflow Consumer Service
 
-**Location**: `alphafusion-workflow/src/alphafusion_workflowconsumer/`
+**Location**: `alphafusion-workflow/src/alphafusion_workflow/`
 
 **Integration**:
 ```python
