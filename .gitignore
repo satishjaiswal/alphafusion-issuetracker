@@ -203,10 +203,64 @@ container/secrets/
 !env.example
 !.env.example
 
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.corrupt.*
+*.old
+
+# Output directories
+output/
+**/output/
+reports/
+**/reports/
+test_outputs/
+tests-output/
+**/test_outputs/
+**/tests-output/
+
+# Cache directories
+.cache/
+**/.cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
 # Firebase and service account credentials
 *-credentials.json
 *_credentials.json
+**/*-credentials.json
+**/*_credentials.json
 service-account*.json
+**/service-account*.json
 firebase-*.json
-**/firebase-credentials.json
+**/firebase-*.json
+google_oauth_credentials*.json
+**/google_oauth_credentials*.json
+firebase_credentials.json
+**/firebase_credentials.json
+market_data_wallet.json
+**/market_data_wallet.json
+
+# OAuth credentials (app-specific and generic)
+**/google-issuetracker.json
+**/google-tradedesk.json
+**/oauth_credentials.json
+
+# Wallets (encrypted wallet files - NEVER commit)
+# Note: Wallets should be in .credentials/wallets/ (outside repos)
+**/wallets/*.encrypted.json
+**/*_wallets.encrypted.json
+trading_wallets.encrypted.json
+solana_wallets.encrypted.json
+dex_wallets.encrypted.json
+wallet_config.json
+**/wallet_config.json
+
+# Corrupted/backup wallet files
+*.encrypted.json.corrupt.*
+*.encrypted.json.backup.*
+*.encrypted.json.bak.*
 
