@@ -13,7 +13,7 @@ The workflow service is successfully integrated with the issue tracker. The end-
 - Passed to `WorkflowProcessor` during initialization
 - Logged: "Issue tracker client initialized (for exception reporting)"
 
-**Location**: `alphafusion-workflow/src/alphafusion_workflowconsumer/dependencies.py:380-398`
+**Location**: `alphafusion-workflow/src/alphafusion_workflow/dependencies.py:380-398`
 
 ### 2. Issue Creation ✅
 
@@ -23,7 +23,7 @@ The workflow service is successfully integrated with the issue tracker. The end-
 - Returns `202 Accepted` with temporary ID
 - Issue published to Kafka topic `alphafusion.issues`
 
-**Location**: `alphafusion-workflow/src/alphafusion_workflowconsumer/processor.py:216-223`
+**Location**: `alphafusion-workflow/src/alphafusion_workflow/processor.py:216-223`
 
 ### 3. Kafka Publishing ✅
 

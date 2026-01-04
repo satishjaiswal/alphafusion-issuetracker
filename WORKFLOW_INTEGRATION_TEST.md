@@ -36,7 +36,7 @@
 
 ### 1. Workflow Service
 
-**Location**: `alphafusion-workflow/src/alphafusion_workflowconsumer/`
+**Location**: `alphafusion-workflow/src/alphafusion_workflow/`
 
 **Initialization**:
 - `DependencyContainer._create_issue_tracker_client()` creates `IssueTrackerClient`
