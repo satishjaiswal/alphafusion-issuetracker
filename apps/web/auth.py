@@ -6,7 +6,7 @@ Authentication and authorization for Issue Tracker
 import logging
 from functools import wraps
 from typing import Optional
-from flask import session, redirect, url_for, request, jsonify, current_app
+from flask import session, redirect, url_for, request, jsonify, current_app, flash
 from apps.web.models import UserRole
 from apps.web.oauth import is_quantory_email
 
@@ -44,7 +44,10 @@ def require_auth(f):
         if not user_id:
             if request.is_json or request.path.startswith("/api/"):
                 return jsonify({"error": "Authentication required"}), 401
-            return redirect(url_for("login"))
+            # Store original URL for redirect after login
+            if request.path not in ['/landing', '/login', '/oauth/callback', '/logout']:
+                session['oauth_redirect'] = request.url
+            return redirect(url_for("landing"))
         
         # Verify user is from @quantory.app domain
         if not is_quantory_email(user_id):
@@ -53,7 +56,7 @@ def require_auth(f):
                 return jsonify({"error": "Access denied. Only @quantory.app users are allowed."}), 403
             flash("Access denied. Only @quantory.app users are allowed.", "error")
             logout_user()
-            return redirect(url_for("login"))
+            return redirect(url_for("landing"))
         
         return f(*args, **kwargs)
     return decorated_function
@@ -68,7 +71,10 @@ def require_role(*roles):
             if not user:
                 if request.is_json or request.path.startswith("/api/"):
                     return jsonify({"error": "Authentication required"}), 401
-                return redirect(url_for("login"))
+                # Store original URL for redirect after login
+                if request.path not in ['/landing', '/login', '/oauth/callback', '/logout']:
+                    session['oauth_redirect'] = request.url
+                return redirect(url_for("landing"))
             
             user_role = UserRole(user.role.value if hasattr(user.role, 'value') else user.role)
             if user_role not in roles:

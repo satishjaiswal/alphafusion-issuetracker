@@ -29,7 +29,122 @@ def _get_firebase_provider():
 def register_routes(app):
     """Register all web UI routes"""
     
+    # ============================================================================
+    # Public Routes (No Authentication Required)
+    # ============================================================================
+    
     @app.route("/")
+    def landing():
+        """Main landing page - shows login interface"""
+        if get_current_user_id():
+            return redirect(url_for('dashboard'))
+        return render_template('landing.html')
+    
+    @app.route("/login", methods=["GET", "POST"])
+    def login():
+        """Login - Only @quantory.app users allowed via Google OAuth"""
+        if request.method == "GET":
+            return redirect(url_for('landing'))
+        
+        try:
+            user_id = request.form.get("user_id")
+            if not user_id:
+                flash("Email is required", "error")
+                return redirect(url_for('landing'))
+            
+            # Only allow @quantory.app emails
+            if not is_quantory_email(user_id):
+                flash("Only @quantory.app email addresses are allowed", "error")
+                return redirect(url_for('landing'))
+            
+            # Start Google OAuth flow
+            redirect_response = start_google_oauth()
+            if redirect_response:
+                return redirect_response
+            else:
+                flash("Google OAuth not configured. Please contact administrator.", "error")
+                return redirect(url_for('landing'))
+        
+        except Exception as e:
+            logger.error(f"Error logging in: {e}", exc_info=True)
+            flash("Error logging in", "error")
+            return redirect(url_for('landing'))
+    
+    @app.route("/oauth/callback")
+    def oauth_callback():
+        """Handle Google OAuth callback"""
+        try:
+            # Handle OAuth callback
+            email = handle_google_callback()
+            
+            if not email:
+                flash("Failed to authenticate with Google", "error")
+                return redirect(url_for("landing"))
+            
+            # Get display name from OAuth session
+            display_name = session.get('oauth_name') or email.split('@')[0]
+            
+            # Try to get or create user in Firebase (optional - Firebase may not be configured)
+            firebase_provider = _get_firebase_provider()
+            if firebase_provider and firebase_provider.is_available():
+                try:
+                    # Check if user exists in Firebase
+                    user = firebase_provider.get_user(email)
+                    if not user:
+                        # Auto-create user account for first-time login (normal behavior)
+                        photo_url = session.get('oauth_picture')
+                        logger.info(f"First-time login detected - creating user account for {email}")
+                        user = firebase_provider.create_user(
+                            uid=email,
+                            email=email,
+                            display_name=display_name,
+                            photo_url=photo_url,
+                            role=UserRole.DEVELOPER  # Internal quantory.app users get developer role
+                        )
+                        if user:
+                            logger.info(f"Created user account for {email} in Firebase")
+                    
+                    # Update user info if available (for existing users or to refresh OAuth data)
+                    if user:
+                        if session.get('oauth_name'):
+                            firebase_provider.update_user(email, display_name=session.get('oauth_name'))
+                        if session.get('oauth_picture'):
+                            firebase_provider.update_user(email, photo_url=session.get('oauth_picture'))
+                        # Use display name from Firebase user if available
+                        display_name = user.display_name or display_name
+                except Exception as firebase_err:
+                    # Firebase operations failed, but continue with login anyway
+                    logger.warning(f"Firebase operations failed during OAuth callback: {firebase_err}. Continuing with session-based login.")
+            else:
+                # Firebase not available - log warning but allow login to proceed
+                logger.warning("Firebase provider not available - user will be logged in with session only. Some features may be limited.")
+            
+            # Log in user with display name (works even without Firebase)
+            login_user(email, display_name=display_name)
+            
+            # Get redirect URL from session
+            redirect_url = session.pop('oauth_redirect', url_for('dashboard'))
+            flash("Logged in successfully", "success")
+            return redirect(redirect_url)
+        
+        except Exception as e:
+            logger.error(f"Error in OAuth callback: {e}", exc_info=True)
+            flash("Error during authentication", "error")
+            return redirect(url_for("landing"))
+    
+    @app.route("/logout")
+    def logout():
+        """Logout"""
+        logout_user()
+        flash("Logged out successfully", "success")
+        return redirect(url_for("landing"))
+    
+    # ============================================================================
+    # Protected Routes (Authentication Required)
+    # ============================================================================
+    
+    @app.route("/dashboard")
+    @require_auth
     def dashboard():
         """Dashboard - issue overview"""
         try:
@@ -91,6 +206,7 @@ def register_routes(app):
             return render_template("dashboard.html", stats={}, recent_issues=[], grouped_issues=[])
     
     @app.route("/issues/recent")
+    @require_auth
     def issues_recent():
         """List recent issues from Firebase"""
         try:
@@ -153,6 +269,7 @@ def register_routes(app):
             return render_template("issues.html", issues=[], users={}, filters={}, source="recent", grouped_issues=[])
     
     @app.route("/issues/all")
+    @require_auth
     def issues_all():
         """List all issues from Firebase"""
         try:
@@ -222,11 +339,13 @@ def register_routes(app):
             return render_template("issues.html", issues=[], users={}, filters={}, source="all", grouped_issues=[])
     
     @app.route("/issues")
+    @require_auth
     def issues_list():
         """Redirect to recent issues by default"""
         return redirect(url_for("issues_recent"))
     
     @app.route("/issues/<issue_id>")
+    @require_auth
     def issue_detail(issue_id: str):
         """Issue detail view"""
         try:
@@ -437,6 +556,7 @@ def register_routes(app):
             return redirect(url_for("issue_detail", issue_id=issue_id))
     
     @app.route("/backlog")
+    @require_auth
     def backlog_list():
         """List all backlog items"""
         try:
@@ -562,6 +682,7 @@ def register_routes(app):
             return render_template("create_backlog.html")
     
     @app.route("/backlog/<backlog_id>")
+    @require_auth
     def backlog_detail(backlog_id: str):
         """Backlog item detail view"""
         try:
@@ -585,105 +706,6 @@ def register_routes(app):
             flash("Error loading backlog item", "error")
             return redirect(url_for("backlog_list"))
     
-    @app.route("/login", methods=["GET", "POST"])
-    def login():
-        """Login - Only @quantory.app users allowed via Google OAuth"""
-        if request.method == "GET":
-            return render_template("login.html")
-        
-        try:
-            user_id = request.form.get("user_id")
-            if not user_id:
-                flash("Email is required", "error")
-                return render_template("login.html")
-            
-            # Only allow @quantory.app emails
-            if not is_quantory_email(user_id):
-                flash("Only @quantory.app email addresses are allowed", "error")
-                return render_template("login.html")
-            
-            # Start Google OAuth flow
-            redirect_response = start_google_oauth()
-            if redirect_response:
-                return redirect_response
-            else:
-                flash("Google OAuth not configured. Please contact administrator.", "error")
-                return render_template("login.html")
-        
-        except Exception as e:
-            logger.error(f"Error logging in: {e}", exc_info=True)
-            flash("Error logging in", "error")
-            return render_template("login.html")
-    
-    @app.route("/oauth/callback")
-    def oauth_callback():
-        """Handle Google OAuth callback"""
-        try:
-            # Handle OAuth callback
-            email = handle_google_callback()
-            
-            if not email:
-                flash("Failed to authenticate with Google", "error")
-                return redirect(url_for("login"))
-            
-            # Get or create user in Firebase
-            # NOTE: We create user accounts automatically on first login - this is expected behavior
-            firebase_provider = _get_firebase_provider()
-            if not firebase_provider or not firebase_provider.is_available():
-                logger.error("Firebase provider not available - cannot create/login user")
-                flash("Firebase database not available. Please contact administrator.", "error")
-                return redirect(url_for("login"))
-            
-            # Check if user exists in Firebase
-            user = firebase_provider.get_user(email)
-            if not user:
-                # Auto-create user account for first-time login (normal behavior)
-                # This happens automatically when a new @quantory.app user logs in for the first time
-                display_name = session.get('oauth_name', email.split('@')[0])
-                photo_url = session.get('oauth_picture')
-                
-                logger.info(f"First-time login detected - creating user account for {email}")
-                user = firebase_provider.create_user(
-                    uid=email,
-                    email=email,
-                    display_name=display_name,
-                    photo_url=photo_url,
-                    role=UserRole.DEVELOPER  # Internal quantory.app users get developer role
-                )
-                
-                if not user:
-                    logger.error(f"Failed to create user account for {email} - Firebase may not be configured correctly")
-                    flash("Failed to create user account. Firebase may not be configured. Please contact administrator.", "error")
-                    return redirect(url_for("login"))
-            
-            # Get display name from OAuth session or user object
-            display_name = session.get('oauth_name') or user.display_name or email.split('@')[0]
-            
-            # Update user info if available (for existing users or to refresh OAuth data)
-            if session.get('oauth_name'):
-                firebase_provider.update_user(email, display_name=session.get('oauth_name'))
-            if session.get('oauth_picture'):
-                firebase_provider.update_user(email, photo_url=session.get('oauth_picture'))
-            
-            # Log in user with display name
-            login_user(email, display_name=display_name)
-            
-            # Get redirect URL from session
-            redirect_url = session.pop('oauth_redirect', url_for('dashboard'))
-            flash("Logged in successfully", "success")
-            return redirect(redirect_url)
-        
-        except Exception as e:
-            logger.error(f"Error in OAuth callback: {e}", exc_info=True)
-            flash("Error during authentication", "error")
-            return redirect(url_for("login"))
-    
-    @app.route("/logout")
-    def logout():
-        """Logout"""
-        logout_user()
-        flash("Logged out successfully", "success")
-        return redirect(url_for("dashboard"))
     
     @app.route("/favicon.ico")
     def favicon():
