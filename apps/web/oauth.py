@@ -25,13 +25,13 @@ def init_oauth(app):
     client_id = None
     client_secret = None
     
-    # Try to load from google-issuetracker.json file first
+    # Try to load from SecureConfigLoader first
     try:
-        from alphafusion.config.secure_config_loader import get_secure_config_loader
+        from alphafusion.config.config_helper import get_config_loader, get_config_value
         from pathlib import Path
         import json
         
-        loader = get_secure_config_loader()
+        loader = get_config_loader()
         
         if loader and loader.credentials_dir:
             # Try to load from .credentials/app/issuetracker/google-issuetracker.json
@@ -52,7 +52,6 @@ def init_oauth(app):
         # If not found in google-issuetracker.json, try individual keys via SecureConfigLoader
         if not client_id or not client_secret:
             try:
-                from alphafusion.config.config_helper import get_config_value
                 if not client_id:
                     client_id = get_config_value("app/issuetracker/google_client_id")
                 if not client_secret:

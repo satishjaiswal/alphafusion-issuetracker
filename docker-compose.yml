@@ -11,7 +11,8 @@ services:
       # All configuration should be read through SecureConfigLoader
       # Non-sensitive configs: alphafusion-config/ → synced to cache
       # Sensitive configs: .credentials/ directory
-      - ALPHAFUSION_CONFIG_MAPPING=${ALPHAFUSION_CONFIG_MAPPING:-/app/alphafusion-issuetracker/config_mapping.json}
+      - ALPHAFUSION_CONFIG_MAPPING=${ALPHAFUSION_CONFIG_MAPPING:-/app/config_mapping.json}
+      - ALPHAFUSION_CONFIG_DIR=/app/config
       - ALPHAFUSION_CREDENTIALS_DIR=/app/.credentials
       # Service connections (vendor-agnostic)
       # NOTE: Services MUST read from SecureConfigLoader - these env vars are for container/service discovery only
