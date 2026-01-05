@@ -32,7 +32,7 @@ The Issue Tracking System is a distributed, event-driven architecture that enabl
 ## Component Diagram
 
 ```mermaid
-graph TB
+flowchart TB
     subgraph "AlphaFusion Services"
         S1[Background Services<br/>MarketData, Liquidation, etc.]
         S2[Newsfeed Service]
